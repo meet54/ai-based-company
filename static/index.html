@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Company — CEO Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1 id="company-name">AI Nexus</h1>
+          <span class="ceo-badge">CEO Command Center</span>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
+        <button class="nav-btn" data-view="projects">📁 Projects <span id="projects-badge" class="nav-badge hidden"></span></button>
+        <button class="nav-btn" data-view="team">📹 Live Monitor</button>
+        <button class="nav-btn" data-view="workflow">🔄 Workflow</button>
+        <button class="nav-btn" data-view="activity">📋 Activity Log</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="ceo-card">
+          <div class="avatar">👔</div>
+          <div>
+            <strong id="ceo-name">CEO</strong>
+            <small id="ceo-email">ceo@company.com</small>
+          </div>
+        </div>
+        <div id="demo-badge" class="demo-badge">Demo Mode</div>
+        <div id="real-badge" class="real-badge hidden">Real AI</div>
+        <div id="key-badge" class="key-badge hidden">API Key Needed</div>
+        <button type="button" class="btn-logout" onclick="logout()">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <!-- Dashboard View -->
+      <section id="view-dashboard" class="view active">
+        <header class="page-header">
+          <div>
+            <h2>Welcome back, <span id="ceo-greeting">CEO</span></h2>
+            <p>Your AI team is working. Here's your company overview.</p>
+          </div>
+          <button class="btn btn-primary" onclick="simulateLead()">+ Simulate New Client</button>
+        </header>
+
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <div id="inhouse-walkgether" class="inhouse-card hidden"></div>
+
+        <div id="notification-banner" class="notification-banner hidden"></div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Recent Projects</h3>
+            <div id="recent-projects" class="list"></div>
+          </div>
+          <div class="card">
+            <h3>Live Activity</h3>
+            <div id="recent-activity" class="activity-feed"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Projects View -->
+      <section id="view-projects" class="view">
+        <header class="page-header">
+          <div>
+            <h2>Projects</h2>
+            <p>Manage client projects from lead to payment.</p>
+          </div>
+          <button class="btn btn-primary" onclick="showNewProjectModal()">+ New Project</button>
+        </header>
+        <div id="projects-list" class="projects-grid"></div>
+      </section>
+
+      <!-- Live Team Monitor (CCTV) -->
+      <section id="view-team" class="view">
+        <header class="page-header">
+          <div>
+            <h2>📹 Live Team Monitor</h2>
+            <p>Watch your AI team in real-time — hover any member to see what they're doing.</p>
+          </div>
+          <div class="monitor-status">
+            <span class="live-dot"></span>
+            <span id="monitor-live-label">LIVE</span>
+            <span id="monitor-stats" class="monitor-stats"></span>
+          </div>
+        </header>
+        <div id="team-monitor-grid" class="monitor-grid"></div>
+        <div class="card" style="margin-top:1.5rem">
+          <h3>Recent Team Activity</h3>
+          <div id="monitor-feed" class="activity-feed"></div>
+        </div>
+      </section>
+
+      <!-- Workflow View -->
+      <section id="view-workflow" class="view">
+        <header class="page-header">
+          <h2>Company Workflow</h2>
+          <p>End-to-end pipeline from client discovery to payment in your account.</p>
+        </header>
+        <div class="workflow-pipeline" id="workflow-pipeline"></div>
+        <div class="card workflow-detail">
+          <h3>How It Works</h3>
+          <div class="workflow-steps-detail" id="workflow-detail"></div>
+        </div>
+      </section>
+
+      <!-- Activity View -->
+      <section id="view-activity" class="view">
+        <header class="page-header">
+          <h2>Activity Log</h2>
+          <p>Every action your AI team takes is logged here.</p>
+        </header>
+        <div id="full-activity" class="activity-full"></div>
+      </section>
+
+      <!-- Project Detail Modal -->
+      <div id="project-modal" class="modal hidden">
+        <div class="modal-content large">
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+          <div id="project-detail"></div>
+        </div>
+      </div>
+
+      <!-- Preview Modal -->
+      <div id="preview-modal" class="modal hidden">
+        <div class="modal-content preview-modal">
+          <div class="preview-header">
+            <div>
+              <h2 id="preview-title">Live Preview</h2>
+              <p id="preview-subtitle" class="preview-subtitle"></p>
+            </div>
+            <div class="preview-actions">
+              <button class="btn btn-outline btn-sm" onclick="openPreviewNewTab()">↗ Open in Tab</button>
+              <button class="modal-close" onclick="closePreview()">&times;</button>
+            </div>
+          </div>
+          <div class="preview-frame-wrap">
+            <iframe id="preview-frame" title="Project live preview"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Project Modal -->
+      <div id="new-project-modal" class="modal hidden">
+        <div class="modal-content">
+          <button class="modal-close" onclick="closeNewProjectModal()">&times;</button>
+          <h2>Create New Project</h2>
+          <form id="new-project-form" onsubmit="createProject(event)">
+            <label>Project Title<input name="title" required placeholder="E-commerce Platform" /></label>
+            <label>Client Company<input name="client_company" required placeholder="Acme Corp" /></label>
+            <label>Contact Name<input name="client_name" required placeholder="Jane Doe" /></label>
+            <label>Contact Email<input name="client_email" type="email" required placeholder="jane@acme.com" /></label>
+            <label>Project Description<textarea name="description" required rows="3" placeholder="What does the client need?"></textarea></label>
+            <button type="submit" class="btn btn-primary full-width">Start AI Pipeline</button>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

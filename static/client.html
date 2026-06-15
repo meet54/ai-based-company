@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Get a Quote — AI Nexus Solutions</title>
+  <link rel="stylesheet" href="/static/client.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <span class="brand-icon">⚡</span>
+        <span id="company-name">AI Nexus Solutions</span>
+      </div>
+      <a href="/" class="ceo-link">CEO Login →</a>
+    </header>
+
+    <main class="main">
+      <div class="hero">
+        <h1>Tell us about your project</h1>
+        <p>Our AI team will review your requirements and send you a custom quotation within 24 hours.</p>
+      </div>
+
+      <form id="inquiry-form" class="form-card">
+        <div class="form-row">
+          <label>
+            Your Name *
+            <input name="contact_name" required placeholder="Jane Doe" />
+          </label>
+          <label>
+            Company Name *
+            <input name="company_name" required placeholder="Acme Corp" />
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            Email *
+            <input name="contact_email" type="email" required placeholder="jane@acme.com" />
+          </label>
+          <label>
+            Phone
+            <input name="phone" type="tel" placeholder="+1 555 000 0000" />
+          </label>
+        </div>
+
+        <label>
+          Project Type *
+          <select name="project_type" required>
+            <option value="website">Website</option>
+            <option value="webapp">Web Application</option>
+            <option value="ecommerce">E-Commerce Store</option>
+            <option value="mobile">Mobile App</option>
+            <option value="custom">Custom Software</option>
+          </select>
+        </label>
+
+        <div class="form-row">
+          <label>
+            Budget Range
+            <select name="budget_range">
+              <option value="">Select budget</option>
+              <option value="Under $5,000">Under $5,000</option>
+              <option value="$5,000 - $15,000">$5,000 - $15,000</option>
+              <option value="$15,000 - $50,000">$15,000 - $50,000</option>
+              <option value="$50,000+">$50,000+</option>
+            </select>
+          </label>
+          <label>
+            Timeline
+            <select name="timeline">
+              <option value="">Select timeline</option>
+              <option value="ASAP (1-2 weeks)">ASAP (1-2 weeks)</option>
+              <option value="1 month">1 month</option>
+              <option value="2-3 months">2-3 months</option>
+              <option value="Flexible">Flexible</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Project Description *
+          <textarea name="description" required rows="5"
+            placeholder="Describe what you need — features, pages, integrations, design preferences..."></textarea>
+        </label>
+
+        <button type="submit" class="submit-btn" id="submit-btn">
+          Submit Project Request
+        </button>
+      </form>
+
+      <div id="success-panel" class="success-panel hidden">
+        <div class="success-icon">✓</div>
+        <h2>Request Received!</h2>
+        <p id="success-message"></p>
+        <p class="success-note">Our AI sales and marketing team is already working on your quotation.</p>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <span>🔍</span>
+          <h3>Requirements Analysis</h3>
+          <p>Our AI analysts document every detail of your project.</p>
+        </div>
+        <div class="feature">
+          <span>💰</span>
+          <h3>Custom Quotation</h3>
+          <p>Transparent pricing with itemized breakdown.</p>
+        </div>
+        <div class="feature">
+          <span>🚀</span>
+          <h3>Fast Delivery</h3>
+          <p>AI developers build your project at speed.</p>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <p>&copy; 2026 <span id="footer-company">AI Nexus Solutions</span>. Powered by AI.</p>
+    </footer>
+  </div>
+
+  <script>
+    async function loadCompany() {
+      try {
+        const res = await fetch('/api/company');
+        const data = await res.json();
+        document.getElementById('company-name').textContent = data.name;
+        document.getElementById('footer-company').textContent = data.name;
+        document.title = `Get a Quote — ${data.name}`;
+      } catch (_) {}
+    }
+
+    document.getElementById('inquiry-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      const body = Object.fromEntries(new FormData(e.target));
+      try {
+        const res = await fetch('/api/client-inquiry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Submission failed');
+
+        document.getElementById('inquiry-form').classList.add('hidden');
+        document.getElementById('success-message').textContent = data.message;
+        document.getElementById('success-panel').classList.remove('hidden');
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Submit Project Request';
+      }
+    });
+
+    loadCompany();
+  </script>
+</body>
+</html>

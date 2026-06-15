@@ -1,0 +1,20 @@
+# Environment
+.env
+*.db
+
+# Generated project code
+deliverables/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp

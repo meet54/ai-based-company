@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CEO Login — AI Company</title>
+  <link rel="stylesheet" href="/static/login.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="logo-icon">⚡</div>
+        <h1 id="company-name">AI Nexus Solutions</h1>
+        <p>CEO Command Center</p>
+      </div>
+
+      <form id="login-form" class="login-form">
+        <label>
+          Email
+          <input type="email" name="email" required autocomplete="username" placeholder="ceo@company.com" />
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" required autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <p id="login-error" class="login-error hidden"></p>
+        <button type="submit" class="btn-login" id="login-btn">Sign in to Dashboard</button>
+      </form>
+
+      <p class="login-footer">Authorized CEO access only</p>
+    </div>
+  </div>
+  <script src="/static/login.js"></script>
+</body>
+</html>
