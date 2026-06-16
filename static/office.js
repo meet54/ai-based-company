@@ -1,17 +1,17 @@
 /**
- * Virtual office — 10:00 AM–7:00 PM with staggered arrival and departure.
+ * Virtual office — 10:00 AM–6:15 PM with staggered arrival and departure.
  */
 const OfficeSimulator = (() => {
   const DAILY_HOURS = 8 * 60;
   const DAILY_HOURS_MS = DAILY_HOURS * 60000;
 
   const OFFICE_OPEN = 10 * 60;
-  const OFFICE_CLOSE = 19 * 60;
+  const OFFICE_CLOSE = 18 * 60 + 15;
   const ENTRY_WINDOW_START = 9 * 60 + 55;
   const ENTRY_WINDOW_END = 10 * 60 + 15;
-  const EXIT_WINDOW_START = 18 * 60 + 50;
-  const EXIT_WINDOW_END = 19 * 60 + 30;
-  const OFFICE_HOURS_LABEL = '10:00 AM – 7:00 PM';
+  const EXIT_WINDOW_START = 18 * 60 + 5;
+  const EXIT_WINDOW_END = 18 * 60 + 25;
+  const OFFICE_HOURS_LABEL = '10:00 AM – 6:15 PM';
 
   const POIS = {
     entrance: { x: 8, y: 92 },
@@ -34,6 +34,26 @@ const OfficeSimulator = (() => {
     { x: 12, y: 58 }, { x: 24, y: 64 }, { x: 36, y: 58 }, { x: 48, y: 66 }, { x: 20, y: 74 },
     { x: 32, y: 80 }, { x: 44, y: 76 },
   ];
+
+  // Chill room slots — world coords aligned to 3D props (floor 24×18)
+  function worldSlot(wx, wz) {
+    return { x: (wx / 24) * 100, y: (wz / 18) * 100 };
+  }
+
+  const GAME_SLOTS = {
+    chess: [
+      worldSlot(2.8, 11.0), worldSlot(3.3, 10.6),
+    ],
+    pool: [
+      worldSlot(4.2, 14.6), worldSlot(4.9, 15.1),
+    ],
+    pingpong: [
+      worldSlot(7.0, 13.6), worldSlot(8.0, 13.0),
+    ],
+    console: [
+      worldSlot(11.3, 11.5), worldSlot(11.0, 11.1), worldSlot(11.6, 11.0),
+    ],
+  };
 
   const LOUNGE_SLOTS = [
     { x: 22, y: 30 }, { x: 34, y: 32 }, { x: 46, y: 30 }, { x: 28, y: 38 }, { x: 40, y: 38 },
@@ -70,6 +90,39 @@ const OfficeSimulator = (() => {
     return slots[idx];
   }
 
+  function normalizeGameKey(game) {
+    const g = (game || '').toLowerCase().trim();
+    if (!g) return 'default';
+    if (g.includes('fifa') || g.includes('fc 2') || g.includes('mario') || g.includes('kart')
+      || g.includes('ps5') || g.includes('console') || g.includes('cod')
+      || g.includes('fortnite') || g.includes('nba')) {
+      return 'console';
+    }
+    if (g.includes('chess')) return 'chess';
+    if (g.includes('pool') || g.includes('billiard') || g.includes('snooker')) return 'pool';
+    if (g.includes('tennis') || g.includes('ping') || g.includes('pong')) return 'pingpong';
+    return 'default';
+  }
+
+  function parseGameName(member) {
+    if (member.office_game) return member.office_game;
+    const task = member.current_task || '';
+    const playing = task.match(/playing\s+(.+)/i);
+    if (playing) return playing[1].trim();
+    if (member.office_activity === 'gaming') {
+      const details = member.work_details || '';
+      const atGame = details.match(/At the (.+?)[\s.—]/i);
+      if (atGame) return atGame[1].trim();
+    }
+    return '';
+  }
+
+  function gameSlotFor(agent, member) {
+    const key = normalizeGameKey(parseGameName(member));
+    const slots = GAME_SLOTS[key] || CHILL_SLOTS;
+    return slotFor(agent, slots);
+  }
+
   const ROLE_EMOJI_MAP = {
     sales: '💼', marketing: '📣', hr: '🧑‍💼', business_analyst: '📋',
     project_manager: '📌', frontend_developer: '🎨', backend_developer: '⚙️',
@@ -91,6 +144,7 @@ const OfficeSimulator = (() => {
   const feedDedup = new Map();
   let scene3d = null;
   let scene3dReady = null;
+  let povMember = null;
 
   function minsNow() {
     const n = new Date();
@@ -164,13 +218,14 @@ const OfficeSimulator = (() => {
       return { loggedMin: 0, loggedMs: 0, remainingMin: DAILY_HOURS, done: false, started: false, pct: 0 };
     }
 
+    const effectiveLeaveMin = Math.min(agent.leaveMin, OFFICE_CLOSE);
     const startMs = todayAtMs(agent.entryMin);
-    const endMs = Math.min(Date.now(), todayAtMs(agent.leaveMin));
+    const endMs = Math.min(Date.now(), todayAtMs(effectiveLeaveMin));
     const elapsedMs = Math.min(Math.max(0, endMs - startMs), DAILY_HOURS_MS);
     const loggedMin = Math.floor(elapsedMs / 60000);
     const remainingMin = Math.max(0, DAILY_HOURS - loggedMin);
-    const done = nowMin >= agent.leaveMin || elapsedMs >= DAILY_HOURS_MS;
-    const started = nowMin >= agent.entryMin && nowMin < agent.leaveMin;
+    const done = nowMin >= effectiveLeaveMin || elapsedMs >= DAILY_HOURS_MS;
+    const started = nowMin >= agent.entryMin && nowMin < effectiveLeaveMin;
 
     return {
       loggedMin,
@@ -190,6 +245,9 @@ const OfficeSimulator = (() => {
 
     if (now < entryMin) {
       return { label: 'Off duty', present: false, key: 'off' };
+    }
+    if (now >= OFFICE_CLOSE) {
+      return { label: 'Left for today', present: false, key: 'done' };
     }
     if (now >= leaveMin) {
       return { label: 'Left for today', present: false, key: 'done' };
@@ -232,12 +290,12 @@ const OfficeSimulator = (() => {
 
   function isOfficeOpenNow() {
     const now = minsNow();
-    return now >= ENTRY_WINDOW_START && now < EXIT_WINDOW_END;
+    return now >= ENTRY_WINDOW_START && now < OFFICE_CLOSE;
   }
 
   function officePhase() {
     const now = minsNow();
-    if (now < ENTRY_WINDOW_START || now >= EXIT_WINDOW_END) return 'closed';
+    if (now < ENTRY_WINDOW_START || now >= OFFICE_CLOSE) return 'closed';
     if (now < ENTRY_WINDOW_END) return 'login';
     if (now >= EXIT_WINDOW_START) return 'logout';
     return 'workday';
@@ -248,7 +306,7 @@ const OfficeSimulator = (() => {
       closed: `Office closed — opens ${formatScheduleTime(OFFICE_OPEN)}`,
       login: `Team arriving (${formatScheduleTime(ENTRY_WINDOW_START)} – ${formatScheduleTime(ENTRY_WINDOW_END)})`,
       workday: `Workday in progress — ${OFFICE_HOURS_LABEL}`,
-      logout: `Team leaving (${formatScheduleTime(EXIT_WINDOW_START)} – ${formatScheduleTime(EXIT_WINDOW_END)})`,
+      logout: `Team leaving (${formatScheduleTime(EXIT_WINDOW_START)} – ${formatScheduleTime(OFFICE_CLOSE)})`,
     };
     return labels[phase] || '';
   }
@@ -393,6 +451,32 @@ const OfficeSimulator = (() => {
     }).join('');
   }
 
+  function setPovHighlight(name) {
+    povMember = name || null;
+    rosterEl?.querySelectorAll('[data-agent]').forEach((el) => {
+      el.classList.toggle('is-pov-focus', !!name && el.dataset.agent === name);
+    });
+  }
+
+  function focusMember(name) {
+    if (!scene3d) return;
+    const member = memberByName(name);
+    const agent = agents.get(name);
+    if (!member || !agent) return;
+    let gameKey = null;
+    if (member.office_activity === 'gaming' || agent.state === 'gaming') {
+      const key = normalizeGameKey(parseGameName(member));
+      if (key !== 'default') gameKey = key;
+    }
+    setPovHighlight(name);
+    scene3d.focusOnCharacter(name, { state: agent.state, gameKey });
+  }
+
+  function clearMemberPov() {
+    setPovHighlight(null);
+    scene3d?.clearCharacterPov();
+  }
+
   function renderRoster() {
     if (!rosterEl) return;
     rosterEl.innerHTML = members.map((m) => {
@@ -406,7 +490,7 @@ const OfficeSimulator = (() => {
         ? `🕐 ${formatScheduleTime(agent.entryMin)} – ${formatScheduleTime(agent.leaveMin)}`
         : '';
       return `
-        <div class="office-roster-card ${m.status}${m.inhouse ? ' inhouse' : ''} ${status.present ? 'present' : 'absent'}">
+        <div class="office-roster-card ${m.status}${m.inhouse ? ' inhouse' : ''} ${status.present ? 'present' : 'absent'}${povMember === m.name ? ' is-pov-focus' : ''}" data-agent="${escapeHtml(m.name)}" role="button" tabindex="0" title="View ${escapeHtml(firstName(m.name))}'s POV">
           <div class="office-roster-top">
             <div class="office-roster-face-wrap">
               <img class="office-roster-face" src="${faceUrl(m.name)}" alt="" />
@@ -518,6 +602,8 @@ const OfficeSimulator = (() => {
       if (scene3d) scene3d.dispose();
       scene3d = new mod.Office3DScene(wrapEl);
       scene3d.buildDesks(DESKS);
+      scene3d.onMemberClick = (name) => setPovHighlight(name);
+      scene3d.onPovExit = () => setPovHighlight(null);
       document.getElementById('office-2d-fallback')?.classList.add('hidden');
       return scene3d;
     } catch (err) {
@@ -598,7 +684,7 @@ const OfficeSimulator = (() => {
     /* Bubbles hidden on floor — details live in side panel only */
   }
 
-  function moveAgent(agent, x, y, state) {
+  function moveAgent(agent, x, y, state, member) {
     agent.x = x;
     agent.y = y;
     agent.state = state;
@@ -614,7 +700,18 @@ const OfficeSimulator = (() => {
         phone: 'phone',
         gaming: 'gaming',
       };
-      scene3d.moveCharacter(agent.id, x, y, mapState[visualState] || visualState);
+      const hints = {};
+      if (member && (state === 'gaming' || member.office_activity === 'gaming')) {
+        const key = normalizeGameKey(parseGameName(member));
+        if (key !== 'default') hints.gameKey = key;
+      }
+      scene3d.moveCharacter(
+        agent.id,
+        x,
+        y,
+        mapState[visualState] || visualState,
+        hints,
+      );
       return;
     }
 
@@ -647,7 +744,7 @@ const OfficeSimulator = (() => {
       return { x: slot.x, y: slot.y, state: 'phone' };
     }
     if (zone === 'chill_room') {
-      const slot = slotFor(agent, CHILL_SLOTS);
+      const slot = gameSlotFor(agent, member);
       return { x: slot.x, y: slot.y, state: 'gaming' };
     }
     if (zone === 'lounge') {
@@ -765,7 +862,7 @@ const OfficeSimulator = (() => {
     const pos = zonePosition(zone, agent, member);
     const zoneChanged = agent.lastOfficeZone != null && agent.lastOfficeZone !== zone;
     agent.lastOfficeZone = zone;
-    moveAgent(agent, pos.x, pos.y, pos.state);
+    moveAgent(agent, pos.x, pos.y, pos.state, member);
 
     if (zoneChanged) {
       const feed = feedForZone(zone, member);
@@ -838,6 +935,18 @@ const OfficeSimulator = (() => {
     phaseEl = document.getElementById('office-phase-label');
     feedEl = document.getElementById('office-live-feed');
     rosterEl = document.getElementById('office-roster');
+    rosterEl?.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-agent]');
+      if (!card) return;
+      focusMember(card.dataset.agent);
+    });
+    rosterEl?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target.closest('[data-agent]');
+      if (!card) return;
+      e.preventDefault();
+      focusMember(card.dataset.agent);
+    });
     const wrap3d = document.getElementById('office-3d-wrap');
     scene3dReady = initScene3D(wrap3d);
   }
@@ -1001,5 +1110,5 @@ const OfficeSimulator = (() => {
     }
   }
 
-  return { start, stop, sync, officePhase };
+  return { start, stop, sync, officePhase, focusMember };
 })();

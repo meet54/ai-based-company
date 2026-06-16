@@ -257,14 +257,22 @@ class OfficeState:
 
         if activity["type"] == ACTIVITY_GAMING:
             game = activity.get("game", "games")
+            locations = {
+                "FIFA": "At the PS5 — playing FIFA.",
+                "Mario Kart": "At the PS5 — playing Mario Kart.",
+                "chess": "At the chess table.",
+                "pool": "At the pool table.",
+                "table tennis": "At the ping pong table.",
+            }
             return {
                 "office_activity": "gaming",
                 "office_zone": zone,
+                "office_game": game,
                 "conversation_partner": None,
                 "office_query": None,
                 "office_answer": None,
                 "current_task": f"Playing {game}",
-                "work_details": "Chilling in the games room.",
+                "work_details": locations.get(game, "Chilling in the games room."),
             }
 
         first = (partner or "").split()[0] if partner else "teammate"

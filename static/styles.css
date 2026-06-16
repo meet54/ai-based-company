@@ -655,6 +655,17 @@ nav { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
   max-height: 300px;
   padding-right: 0.25rem;
 }
+.office-roster-card[data-agent] {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.office-roster-card[data-agent]:hover {
+  border-color: rgba(168, 85, 247, 0.35);
+}
+.office-roster-card.is-pov-focus {
+  border-color: rgba(168, 85, 247, 0.65);
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.3);
+}
 .office-roster-card {
   padding: 1rem 1.1rem;
   background: var(--surface-2);
@@ -1478,6 +1489,8 @@ form input:focus, form textarea:focus {
   white-space: nowrap;
 }
 .office-3d-agent-label {
+  pointer-events: auto;
+  cursor: pointer;
   text-align: center;
   padding: 0.35rem 0.5rem;
   background: rgba(10, 14, 20, 0.88);
@@ -1522,6 +1535,25 @@ form input:focus, form textarea:focus {
 .office-3d-agent-label.state-phone { border-color: rgba(59, 130, 246, 0.5); }
 .office-3d-agent-label.state-gaming { border-color: rgba(168, 85, 247, 0.5); }
 .office-3d-agent-label.state-talking { border-color: rgba(99, 102, 241, 0.5); }
+.office-3d-agent-label.is-pov {
+  border-color: rgba(168, 85, 247, 0.9);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.4);
+}
+.office-3d-pov-banner {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  padding: 0.4rem 0.85rem;
+  background: rgba(88, 28, 135, 0.88);
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  border-radius: 8px;
+  font-size: 0.68rem;
+  color: #f3e8ff;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .office-3d-legend {
   position: absolute;
   bottom: 0.75rem;

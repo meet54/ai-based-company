@@ -159,6 +159,7 @@ class TeamMonitor:
                 "stage": log.get("stage") if log else None,
                 "office_zone": office_zone,
                 "office_activity": activity_info.get("office_activity", "idle"),
+                "office_game": activity_info.get("office_game"),
                 "conversation_partner": activity_info.get("conversation_partner"),
                 "office_query": activity_info.get("office_query"),
                 "office_answer": activity_info.get("office_answer"),
