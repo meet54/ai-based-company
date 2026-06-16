@@ -5,36 +5,45 @@
       "updated_at": "2026-06-16T09:09:04.717816"
     },
     "Priya Sharma": {
-      "zone": "desk",
-      "updated_at": "2026-06-16T10:16:42.147748"
+      "zone": "lounge",
+      "activity": {
+        "type": "query",
+        "role": "responder",
+        "partner": "Alex Rivera",
+        "query": "What's blocking the push notifications work this sprint?",
+        "answer": "Good question \u2014 I'd use the shared module for push notifications. Let's sync after standup.",
+        "until": "2026-06-16T10:20:50.622364"
+      },
+      "updated_at": "2026-06-16T10:18:50.622364"
     },
     "Alex Rivera": {
-      "zone": "coffee_room",
-      "activity": {
-        "type": "coffee_break",
-        "until": "2026-06-16T10:19:38.698468"
-      },
-      "updated_at": "2026-06-16T10:17:08.698468"
-    },
-    "Sam Okafor": {
-      "zone": "desk",
-      "updated_at": "2026-06-16T10:17:45.831225"
-    },
-    "Marcus Johnson": {
       "zone": "lounge",
       "activity": {
         "type": "query",
         "role": "asker",
-        "partner": "Elena Vasquez",
-        "query": "What's blocking the profile API work this sprint?",
-        "answer": "Yes, we covered that in the last sprint. I'll share the doc in Slack.",
-        "until": "2026-06-16T10:18:17.834892"
+        "partner": "Priya Sharma",
+        "query": "What's blocking the push notifications work this sprint?",
+        "answer": "Good question \u2014 I'd use the shared module for push notifications. Let's sync after standup.",
+        "until": "2026-06-16T10:20:50.622364"
       },
-      "updated_at": "2026-06-16T10:16:17.834892"
+      "updated_at": "2026-06-16T10:18:50.622364"
+    },
+    "Sam Okafor": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T10:18:41.470434"
+    },
+    "Marcus Johnson": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T10:18:20.247219"
     },
     "Aisha Khan": {
-      "zone": "desk",
-      "updated_at": "2026-06-16T10:17:39.186680"
+      "zone": "chill_room",
+      "activity": {
+        "type": "gaming",
+        "game": "chess",
+        "until": "2026-06-16T10:21:30.118051"
+      },
+      "updated_at": "2026-06-16T10:18:10.118051"
     },
     "Taylor Wright": {
       "zone": "lounge",
@@ -66,25 +75,21 @@
       "updated_at": "2026-06-16T10:17:49.553892"
     },
     "Elena Vasquez": {
-      "zone": "lounge",
+      "zone": "coffee_room",
       "activity": {
-        "type": "query",
-        "role": "responder",
-        "partner": "Marcus Johnson",
-        "query": "What's blocking the profile API work this sprint?",
-        "answer": "Yes, we covered that in the last sprint. I'll share the doc in Slack.",
-        "until": "2026-06-16T10:18:17.834892"
+        "type": "coffee_break",
+        "until": "2026-06-16T10:20:50.248423"
       },
-      "updated_at": "2026-06-16T10:16:17.834892"
+      "updated_at": "2026-06-16T10:18:20.248423"
     },
     "Morgan Chen": {
       "zone": "phone_room",
       "activity": {
         "type": "phone_call",
         "partner": "sales prospect",
-        "until": "2026-06-16T10:19:28.164681"
+        "until": "2026-06-16T10:21:40.447812"
       },
-      "updated_at": "2026-06-16T10:16:28.164681"
+      "updated_at": "2026-06-16T10:18:40.447812"
     },
     "Nina Brooks": {
       "zone": "coffee_room",
@@ -103,9 +108,17 @@
       "updated_at": "2026-06-16T10:17:18.880064"
     },
     "Riya Patel": {
-      "zone": "desk",
-      "updated_at": "2026-06-16T10:17:49.553892"
+      "zone": "lounge",
+      "activity": {
+        "type": "query",
+        "role": "asker",
+        "partner": "Sam Okafor",
+        "query": "Do we have test coverage for the deployment pipeline flow yet?",
+        "answer": "I checked with the team \u2014 we're aligned on Redis caching for Walkgether.",
+        "until": "2026-06-16T10:19:59.764398"
+      },
+      "updated_at": "2026-06-16T10:17:59.764398"
     }
   },
-  "updated_at": "2026-06-16T10:17:49.553892"
+  "updated_at": "2026-06-16T10:18:50.622364"
 }
