@@ -8,7 +8,7 @@ from src.config import settings
 
 def detect_project_type(text: str) -> str:
     t = text.lower()
-    if any(w in t for w in ("ecommerce", "e-commerce", "shop", "store", "cart", "payment")):
+    if re.search(r"\b(e-?commerce|online store|shopping cart|add to cart|product catalog|shopify|woocommerce)\b", t):
         return "ecommerce"
     if any(w in t for w in ("dashboard", "admin", "portal", "saas", "analytics")):
         return "dashboard"

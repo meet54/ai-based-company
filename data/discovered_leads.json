@@ -1,5 +1,5 @@
 {
-  "last_scan_at": "2026-06-16T10:18:17.682714",
+  "last_scan_at": "2026-06-16T11:03:23.460378",
   "leads": [
     {
       "id": "a08dc08f6f1d56c3",
@@ -1527,7 +1527,7 @@
       "score": 35,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:15.937739"
+      "discovered_at": "2026-06-16T11:03:21.497832"
     },
     {
       "id": "eeb10fe8b469d194",
@@ -1555,7 +1555,7 @@
       "score": 45,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:15.937739"
+      "discovered_at": "2026-06-16T11:03:21.497832"
     },
     {
       "id": "9c8feac3f01a8c9e",
@@ -1583,7 +1583,7 @@
       "score": 35,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:15.937739"
+      "discovered_at": "2026-06-16T11:03:21.497832"
     },
     {
       "id": "81536f2682ba2fe6",
@@ -1611,7 +1611,7 @@
       "score": 35,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:15.937739"
+      "discovered_at": "2026-06-16T11:03:21.497832"
     },
     {
       "id": "c0827421a7956464",
@@ -1639,7 +1639,7 @@
       "score": 47,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:15.937739"
+      "discovered_at": "2026-06-16T11:03:21.497832"
     },
     {
       "id": "5bcc28b0cc325eb6",
@@ -1667,7 +1667,7 @@
       "score": 45,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:16.361843"
+      "discovered_at": "2026-06-16T11:03:22.032189"
     },
     {
       "id": "2241cffad53d6713",
@@ -1695,7 +1695,7 @@
       "score": 47,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:16.818102"
+      "discovered_at": "2026-06-16T11:03:22.532858"
     },
     {
       "id": "08a400eb4d596fd8",
@@ -1723,7 +1723,7 @@
       "score": 35,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:16.818102"
+      "discovered_at": "2026-06-16T11:03:22.532858"
     },
     {
       "id": "6b60d2442989f5ec",
@@ -1751,7 +1751,7 @@
       "score": 57,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:17.682714"
+      "discovered_at": "2026-06-16T11:03:23.444750"
     },
     {
       "id": "c09aaead5865215c",
@@ -1779,7 +1779,7 @@
       "score": 35,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:17.682714"
+      "discovered_at": "2026-06-16T11:03:23.460378"
     },
     {
       "id": "1285c745204e3e7d",
@@ -1807,7 +1807,7 @@
       "score": 75,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:17.682714"
+      "discovered_at": "2026-06-16T11:03:23.460378"
     },
     {
       "id": "86a60d4b046cba7d",
@@ -1835,7 +1835,7 @@
       "score": 75,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:17.682714"
+      "discovered_at": "2026-06-16T11:03:23.460378"
     },
     {
       "id": "f58758f5a5bf395e",
@@ -1863,7 +1863,7 @@
       "score": 75,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:17.682714"
+      "discovered_at": "2026-06-16T11:03:23.460378"
     },
     {
       "id": "b9c1a641756d568b",
@@ -1891,7 +1891,7 @@
       "score": 75,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:17.682714"
+      "discovered_at": "2026-06-16T11:03:23.460378"
     },
     {
       "id": "8bc8ff6dfa14c076",
@@ -1919,7 +1919,7 @@
       "score": 75,
       "status": "new",
       "project_id": null,
-      "discovered_at": "2026-06-16T10:18:17.682714"
+      "discovered_at": "2026-06-16T11:03:23.460378"
     }
   ]
 }

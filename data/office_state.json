@@ -5,120 +5,114 @@
       "updated_at": "2026-06-16T09:09:04.717816"
     },
     "Priya Sharma": {
-      "zone": "lounge",
-      "activity": {
-        "type": "query",
-        "role": "responder",
-        "partner": "Alex Rivera",
-        "query": "What's blocking the push notifications work this sprint?",
-        "answer": "Good question \u2014 I'd use the shared module for push notifications. Let's sync after standup.",
-        "until": "2026-06-16T10:20:50.622364"
-      },
-      "updated_at": "2026-06-16T10:18:50.622364"
+      "zone": "desk",
+      "updated_at": "2026-06-16T11:03:19.529874"
     },
     "Alex Rivera": {
       "zone": "lounge",
       "activity": {
         "type": "query",
         "role": "asker",
-        "partner": "Priya Sharma",
-        "query": "What's blocking the push notifications work this sprint?",
-        "answer": "Good question \u2014 I'd use the shared module for push notifications. Let's sync after standup.",
-        "until": "2026-06-16T10:20:50.622364"
+        "partner": "Taylor Wright",
+        "query": "Do we have test coverage for the mobile auth flow yet?",
+        "answer": "Not yet \u2014 I'm finishing mobile auth first, should be ready by EOD.",
+        "until": "2026-06-16T11:05:34.271669"
       },
-      "updated_at": "2026-06-16T10:18:50.622364"
+      "updated_at": "2026-06-16T11:03:34.271669"
     },
     "Sam Okafor": {
-      "zone": "desk",
-      "updated_at": "2026-06-16T10:18:41.470434"
+      "zone": "chill_room",
+      "activity": {
+        "type": "gaming",
+        "game": "chess",
+        "until": "2026-06-16T11:06:02.866741"
+      },
+      "updated_at": "2026-06-16T11:02:42.866741"
     },
     "Marcus Johnson": {
-      "zone": "desk",
-      "updated_at": "2026-06-16T10:18:20.247219"
+      "zone": "chill_room",
+      "activity": {
+        "type": "gaming",
+        "game": "FIFA",
+        "until": "2026-06-16T11:07:14.707683"
+      },
+      "updated_at": "2026-06-16T11:03:54.707683"
     },
     "Aisha Khan": {
       "zone": "chill_room",
       "activity": {
         "type": "gaming",
         "game": "chess",
-        "until": "2026-06-16T10:21:30.118051"
+        "until": "2026-06-16T11:07:24.960711"
       },
-      "updated_at": "2026-06-16T10:18:10.118051"
+      "updated_at": "2026-06-16T11:04:04.960711"
     },
     "Taylor Wright": {
       "zone": "lounge",
       "activity": {
         "type": "query",
-        "role": "asker",
-        "partner": "Sam Okafor",
-        "query": "Who owns the push notifications integration on your side?",
-        "answer": "I'd recommend we keep it simple for MVP and iterate on push notifications next sprint.",
-        "until": "2026-06-16T10:19:39.187678"
+        "role": "responder",
+        "partner": "Alex Rivera",
+        "query": "Do we have test coverage for the mobile auth flow yet?",
+        "answer": "Not yet \u2014 I'm finishing mobile auth first, should be ready by EOD.",
+        "until": "2026-06-16T11:05:34.271669"
       },
-      "updated_at": "2026-06-16T10:17:39.187678"
+      "updated_at": "2026-06-16T11:03:34.271669"
     },
     "David Kim": {
-      "zone": "coffee_room",
-      "activity": {
-        "type": "coffee_break",
-        "until": "2026-06-16T10:19:28.515285"
-      },
-      "updated_at": "2026-06-16T10:16:58.515285"
+      "zone": "desk",
+      "updated_at": "2026-06-16T11:03:54.707683"
     },
     "Jordan Lee": {
       "zone": "chill_room",
       "activity": {
         "type": "gaming",
-        "game": "FIFA",
-        "until": "2026-06-16T10:21:09.553892"
+        "game": "Mario Kart",
+        "until": "2026-06-16T11:07:35.165800"
       },
-      "updated_at": "2026-06-16T10:17:49.553892"
+      "updated_at": "2026-06-16T11:04:15.165800"
     },
     "Elena Vasquez": {
-      "zone": "coffee_room",
-      "activity": {
-        "type": "coffee_break",
-        "until": "2026-06-16T10:20:50.248423"
-      },
-      "updated_at": "2026-06-16T10:18:20.248423"
-    },
-    "Morgan Chen": {
-      "zone": "phone_room",
-      "activity": {
-        "type": "phone_call",
-        "partner": "sales prospect",
-        "until": "2026-06-16T10:21:40.447812"
-      },
-      "updated_at": "2026-06-16T10:18:40.447812"
-    },
-    "Nina Brooks": {
-      "zone": "coffee_room",
-      "activity": {
-        "type": "coffee_break",
-        "until": "2026-06-16T10:19:18.336920"
-      },
-      "updated_at": "2026-06-16T10:16:48.336920"
-    },
-    "Chris Taylor": {
-      "zone": "coffee_room",
-      "activity": {
-        "type": "coffee_break",
-        "until": "2026-06-16T10:19:48.880064"
-      },
-      "updated_at": "2026-06-16T10:17:18.880064"
-    },
-    "Riya Patel": {
       "zone": "lounge",
       "activity": {
         "type": "query",
         "role": "asker",
-        "partner": "Sam Okafor",
-        "query": "Do we have test coverage for the deployment pipeline flow yet?",
-        "answer": "I checked with the team \u2014 we're aligned on Redis caching for Walkgether.",
-        "until": "2026-06-16T10:19:59.764398"
+        "partner": "Morgan Chen",
+        "query": "Can you clarify the API contract for Haurcrusx \u2014 Website?",
+        "answer": "Not yet \u2014 I'm finishing push notifications first, should be ready by EOD.",
+        "until": "2026-06-16T11:05:23.580132"
       },
-      "updated_at": "2026-06-16T10:17:59.764398"
+      "updated_at": "2026-06-16T11:03:23.580132"
+    },
+    "Morgan Chen": {
+      "zone": "lounge",
+      "activity": {
+        "type": "query",
+        "role": "responder",
+        "partner": "Elena Vasquez",
+        "query": "Can you clarify the API contract for Haurcrusx \u2014 Website?",
+        "answer": "Not yet \u2014 I'm finishing push notifications first, should be ready by EOD.",
+        "until": "2026-06-16T11:05:23.580132"
+      },
+      "updated_at": "2026-06-16T11:03:23.580132"
+    },
+    "Nina Brooks": {
+      "zone": "phone_room",
+      "activity": {
+        "type": "phone_call",
+        "partner": "QA lead",
+        "until": "2026-06-16T11:04:41.017060"
+      },
+      "updated_at": "2026-06-16T11:01:41.017060"
+    },
+    "Chris Taylor": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T11:03:23.214940"
+    },
+    "Riya Patel": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T11:03:03.096295"
     }
   },
-  "updated_at": "2026-06-16T10:18:50.622364"
+  "updated_at": "2026-06-16T11:04:15.165800"
 }

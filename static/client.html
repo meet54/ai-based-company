@@ -19,11 +19,17 @@
 
     <main class="main">
       <div class="hero">
-        <h1>Tell us about your project</h1>
-        <p>Our AI team will review your requirements and send you a custom quotation within 24 hours.</p>
+        <h1>Get a fixed USD quote in 24 hours</h1>
+        <p>Lean pricing. Clear requirements. Our AI team builds exactly what you describe.</p>
       </div>
 
+      <section class="pricing-grid" id="pricing-grid">
+        <p class="pricing-loading">Loading packages…</p>
+      </section>
+
       <form id="inquiry-form" class="form-card">
+        <h2 class="form-heading">Tell us what you need</h2>
+
         <div class="form-row">
           <label>
             Your Name *
@@ -47,26 +53,21 @@
         </div>
 
         <label>
-          Project Type *
-          <select name="project_type" required>
-            <option value="website">Website</option>
-            <option value="webapp">Web Application</option>
-            <option value="ecommerce">E-Commerce Store</option>
-            <option value="mobile">Mobile App</option>
-            <option value="custom">Custom Software</option>
+          Service package *
+          <select name="service_tier" id="service_tier" required>
+            <option value="single_page">Single Page Website — from $250</option>
+            <option value="dynamic_2_page">Dynamic 2-Page Website — from $400</option>
+            <option value="ecommerce_starter">E-Commerce Starter — from $1,200</option>
+            <option value="web_application">Web Application — from $2,500</option>
+            <option value="mobile_app">Mobile App — from $3,500</option>
+            <option value="custom_software">Fully Custom Software — from $4,500</option>
           </select>
         </label>
 
         <div class="form-row">
           <label>
-            Budget Range
-            <select name="budget_range">
-              <option value="">Select budget</option>
-              <option value="Under $5,000">Under $5,000</option>
-              <option value="$5,000 - $15,000">$5,000 - $15,000</option>
-              <option value="$15,000 - $50,000">$15,000 - $50,000</option>
-              <option value="$50,000+">$50,000+</option>
-            </select>
+            Pages / screens needed
+            <input name="pages_needed" placeholder="e.g. Home + About + Contact" />
           </label>
           <label>
             Timeline
@@ -81,13 +82,32 @@
         </div>
 
         <label>
-          Project Description *
-          <textarea name="description" required rows="5"
-            placeholder="Describe what you need — features, pages, integrations, design preferences..."></textarea>
+          Project description *
+          <textarea name="description" required rows="4"
+            placeholder="What should we build? Who is it for? Any design references or competitors?"></textarea>
         </label>
 
+        <label>
+          Must-have features
+          <textarea name="must_have_features" rows="3"
+            placeholder="e.g. contact form, payment, login, admin panel, API integration…"></textarea>
+        </label>
+
+        <label>
+          Budget (optional)
+          <select name="budget_range">
+            <option value="">Select budget</option>
+            <option value="Under $500">Under $500</option>
+            <option value="$500 - $1,500">$500 - $1,500</option>
+            <option value="$1,500 - $5,000">$1,500 - $5,000</option>
+            <option value="$5,000+">$5,000+</option>
+          </select>
+        </label>
+
+        <input type="hidden" name="project_type" id="project_type" value="website" />
+
         <button type="submit" class="submit-btn" id="submit-btn">
-          Submit Project Request
+          Get My Quotation
         </button>
       </form>
 
@@ -95,34 +115,44 @@
         <div class="success-icon">✓</div>
         <h2>Request Received!</h2>
         <p id="success-message"></p>
-        <p class="success-note">Our AI sales and marketing team is already working on your quotation.</p>
+        <p id="success-quote" class="success-quote"></p>
+        <p class="success-note">Our sales &amp; finance team is preparing your itemized USD quotation now.</p>
       </div>
 
       <div class="features">
         <div class="feature">
           <span>🔍</span>
-          <h3>Requirements Analysis</h3>
-          <p>Our AI analysts document every detail of your project.</p>
+          <h3>Clear requirements</h3>
+          <p>We document every feature before development starts.</p>
         </div>
         <div class="feature">
           <span>💰</span>
-          <h3>Custom Quotation</h3>
-          <p>Transparent pricing with itemized breakdown.</p>
+          <h3>Fixed USD pricing</h3>
+          <p>Transparent packages — no surprise invoices.</p>
         </div>
         <div class="feature">
           <span>🚀</span>
-          <h3>Fast Delivery</h3>
-          <p>AI developers build your project at speed.</p>
+          <h3>Fast delivery</h3>
+          <p>Developers work from your approved requirements doc.</p>
         </div>
       </div>
     </main>
 
     <footer>
-      <p>&copy; 2026 <span id="footer-company">AI Nexus Solutions</span>. Powered by AI.</p>
+      <p>&copy; 2026 <span id="footer-company">AI Nexus Solutions</span>. All prices in USD.</p>
     </footer>
   </div>
 
   <script>
+    const TIER_TO_TYPE = {
+      single_page: 'website',
+      dynamic_2_page: 'website',
+      ecommerce_starter: 'ecommerce',
+      web_application: 'webapp',
+      mobile_app: 'mobile',
+      custom_software: 'custom',
+    };
+
     async function loadCompany() {
       try {
         const res = await fetch('/api/company');
@@ -133,11 +163,47 @@
       } catch (_) {}
     }
 
+    async function loadPricing() {
+      const grid = document.getElementById('pricing-grid');
+      try {
+        const res = await fetch('/api/pricing/tiers');
+        const data = await res.json();
+        const highlight = new Set(['single_page', 'dynamic_2_page', 'custom_software']);
+        grid.innerHTML = data.tiers
+          .filter(t => highlight.has(t.id))
+          .map(t => `
+            <div class="price-card" data-tier="${t.id}">
+              <div class="price-amount">$${t.base_usd.toLocaleString()}</div>
+              <h3>${t.label}</h3>
+              <p>${t.description}</p>
+              <span class="price-delivery">${t.delivery_days}</span>
+              <button type="button" class="price-select-btn" data-tier="${t.id}">Select</button>
+            </div>
+          `).join('');
+
+        grid.querySelectorAll('.price-select-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tier = btn.dataset.tier;
+            const sel = document.getElementById('service_tier');
+            sel.value = tier;
+            document.getElementById('project_type').value = TIER_TO_TYPE[tier] || 'website';
+            sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+        });
+      } catch (_) {
+        grid.innerHTML = '';
+      }
+    }
+
+    document.getElementById('service_tier').addEventListener('change', (e) => {
+      document.getElementById('project_type').value = TIER_TO_TYPE[e.target.value] || 'website';
+    });
+
     document.getElementById('inquiry-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
-      btn.textContent = 'Submitting...';
+      btn.textContent = 'Submitting…';
 
       const body = Object.fromEntries(new FormData(e.target));
       try {
@@ -150,16 +216,23 @@
         if (!res.ok) throw new Error(data.detail || 'Submission failed');
 
         document.getElementById('inquiry-form').classList.add('hidden');
+        document.getElementById('pricing-grid').classList.add('hidden');
         document.getElementById('success-message').textContent = data.message;
+        const q = data.quotation;
+        const est = data.estimated_usd;
+        document.getElementById('success-quote').textContent = q
+          ? `Estimated total: $${q.total_amount.toLocaleString()} USD`
+          : (est ? `Starting from $${est.toLocaleString()} USD` : '');
         document.getElementById('success-panel').classList.remove('hidden');
       } catch (err) {
         alert(err.message);
         btn.disabled = false;
-        btn.textContent = 'Submit Project Request';
+        btn.textContent = 'Get My Quotation';
       }
     });
 
     loadCompany();
+    loadPricing();
   </script>
 </body>
 </html>

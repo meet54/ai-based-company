@@ -13,6 +13,7 @@ from urllib.parse import quote_plus
 import httpx
 
 from src.config import settings
+from src.services.pricing import outreach_message, tier_summary_for_lead
 from src.database.state_store import app_state_store
 
 try:
@@ -411,6 +412,7 @@ class LeadScout:
             email = f"{slug}@prospect.mail"
 
         score = self._score_freelance(title, description, budget, email)
+        pricing = tier_summary_for_lead(description, title)
 
         return {
             "id": self._lead_id(source, external_id),
@@ -434,14 +436,13 @@ class LeadScout:
                 "linkedin_people": self._linkedin_people_search(company),
                 "reddit": url if source == "reddit" else "",
             },
-            "outreach_draft": (
-                f"Hi {contact},\n\n"
-                f"I saw your freelance post \"{title[:80]}\" — {settings.company_name} "
-                f"builds websites, web apps, and e-commerce on a project/contract basis. "
-                f"We can start quickly and work within your budget.\n\n"
-                f"Can we jump on a 15-min call to discuss scope and timeline?\n\n"
-                f"Best,\n{settings.ceo_name}"
+            "outreach_draft": outreach_message(
+                contact,
+                title,
+                pricing["tier_id"],
+                settings.company_name,
             ),
+            "pricing_estimate": pricing,
             "score": score,
             "status": "new",
             "project_id": None,

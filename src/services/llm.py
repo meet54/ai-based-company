@@ -213,14 +213,14 @@ class LLMService:
             return json.dumps(
                 {
                     "line_items": [
-                        {"item": "Discovery & Requirements", "hours": 20, "rate": 75, "amount": 1500},
-                        {"item": "UI/UX Design", "hours": 40, "rate": 80, "amount": 3200},
-                        {"item": "Frontend Development", "hours": 80, "rate": 85, "amount": 6800},
-                        {"item": "Backend Development", "hours": 80, "rate": 90, "amount": 7200},
-                        {"item": "QA & Testing", "hours": 30, "rate": 70, "amount": 2100},
-                        {"item": "Deployment & Handover", "hours": 15, "rate": 75, "amount": 1125},
+                        {
+                            "item": "Fixed package (see tier pricing)",
+                            "hours": "-",
+                            "rate": "Fixed",
+                            "amount": 400,
+                        }
                     ],
-                    "notes": "50% upfront, 50% on delivery. Payment to CEO account.",
+                    "notes": "Quotation uses fixed USD tier pricing — not hourly estimates.",
                 },
                 indent=2,
             )

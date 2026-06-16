@@ -225,6 +225,10 @@ nav { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
   color: var(--warning);
   font-weight: 600;
 }
+.lead-price-est {
+  color: var(--primary);
+  font-weight: 600;
+}
 .lead-desc {
   font-size: 0.82rem;
   color: var(--text-muted);

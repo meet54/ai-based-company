@@ -377,7 +377,7 @@ async function init() {
 
 function startLeadsPolling() {
   if (leadsPollInterval) clearInterval(leadsPollInterval);
-  leadsPollInterval = setInterval(refreshLiveLeads, 30000);
+  leadsPollInterval = setInterval(refreshLiveLeads, 15000);
 }
 
 function renderLiveLeads(leadsData) {
@@ -391,7 +391,7 @@ function renderLiveLeads(leadsData) {
     const sources = (status.last_scan_sources || []).join(', ') || 'Reddit, HN, Remote OK, Jobicy';
     const when = status.last_scan_at
       ? `Last scan: ${formatTime(status.last_scan_at)}`
-      : 'Auto-scan every 90s';
+      : 'Auto-scan every 60s';
     const regions = (status.target_regions || ['USA', 'UK', 'EU', 'India', 'Japan']).join(' · ');
     statusEl.textContent = status.scanning
       ? `Scanning freelance gigs in ${regions}…`
@@ -431,6 +431,7 @@ function renderLiveLeads(leadsData) {
         <p class="lead-desc">${escapeHtml((lead.description || '').slice(0, 220))}${(lead.description || '').length > 220 ? '…' : ''}</p>
         <div class="lead-meta">
           <span class="lead-score">Match ${lead.score}%</span>
+          ${lead.pricing_estimate ? `<span class="lead-price-est">📋 From $${Number(lead.pricing_estimate.estimated_usd || 0).toLocaleString()} · ${escapeHtml(lead.pricing_estimate.tier_label || '')}</span>` : ''}
           ${lead.budget_hint ? `<span class="lead-budget">💰 ${escapeHtml(lead.budget_hint)}</span>` : ''}
           · ${escapeHtml(lead.contact_name)}
           · ${escapeHtml(lead.location || 'Remote')}
@@ -474,7 +475,19 @@ async function approachLead(leadId) {
   try {
     showToast('Sales team approaching client & building quotation…', 'success');
     const result = await api(`/leads/${leadId}/approach`, { method: 'POST', body: '{}' });
-    showToast(result.message, 'success');
+    const total = result.quotation?.total_amount;
+    showToast(
+      total
+        ? `${result.message} Quote: $${total.toLocaleString()} USD`
+        : result.message,
+      'success'
+    );
+    if (result.outreach_draft) {
+      try {
+        await navigator.clipboard.writeText(result.outreach_draft);
+        showToast('Outreach message copied to clipboard — paste on Reddit/LinkedIn', 'success');
+      } catch (_) {}
+    }
     await refreshLiveLeads();
     if (document.querySelector('.view.active')?.id === 'view-dashboard') {
       await loadDashboard();
@@ -660,11 +673,13 @@ async function openProject(id) {
   let actions = '';
   if (p.preview_available) {
     actions = previewButton(id, p.title, previewed ? 'View Again' : 'Live Preview', 'btn-success-inline');
+    actions += `<button type="button" class="btn btn-outline btn-sm" onclick="rebuildSite(${id})">🔨 Rebuild from Requirements</button>`;
   }
   if (p.current_stage === 'ceo_approval') {
     actions += `
       <button class="btn btn-success" onclick="ceoApprove(${id}, true)">✓ Approve Quotation</button>
       <button class="btn btn-danger" onclick="ceoApprove(${id}, false)">✗ Reject</button>
+      <button class="btn btn-outline" onclick="requoteProject(${id})">💰 Recalculate Quote</button>
     `;
   } else if (!done) {
     actions += `
@@ -676,8 +691,11 @@ async function openProject(id) {
   let quotationHtml = '';
   if (q) {
     const rows = q.line_items.map(i =>
-      `<tr><td>${i.item}</td><td>${i.hours || '-'}</td><td>$${i.rate || '-'}</td><td>$${i.amount.toLocaleString()}</td></tr>`
+      `<tr><td>${escapeHtml(i.item)}</td><td>${i.hours ?? '-'}</td><td>${typeof i.rate === 'number' ? '$' + i.rate : (i.rate || '-')}</td><td>$${Number(i.amount).toLocaleString()}</td></tr>`
     ).join('');
+    const taxRow = q.tax_percent > 0
+      ? `<tr><td colspan="3">Tax (${q.tax_percent}%)</td><td>$${q.tax_amount.toLocaleString()}</td></tr>`
+      : '';
     quotationHtml = `
       <div class="detail-section">
         <h3>Quotation ${q.approved_by_ceo ? '✓ Approved' : '(Pending CEO)'}</h3>
@@ -686,7 +704,7 @@ async function openProject(id) {
           <tbody>${rows}</tbody>
           <tfoot>
             <tr><td colspan="3">Subtotal</td><td>$${q.subtotal.toLocaleString()}</td></tr>
-            <tr><td colspan="3">Tax (${q.tax_percent}%)</td><td>$${q.tax_amount.toLocaleString()}</td></tr>
+            ${taxRow}
             <tr class="total"><td colspan="3">Total</td><td>$${q.total_amount.toLocaleString()}</td></tr>
           </tfoot>
         </table>
@@ -874,6 +892,31 @@ async function ceoApprove(id, approved) {
     loadDashboard();
   } catch (err) {
     showToast(err.message);
+  }
+}
+
+async function requoteProject(id) {
+  try {
+    showToast('Recalculating fixed USD quote…', 'success');
+    const result = await api(`/projects/${id}/requote`, { method: 'POST', body: '{}' });
+    const total = result.quotation?.total_amount;
+    showToast(total ? `New quote: $${total.toLocaleString()} USD` : 'Quote updated', 'success');
+    openProject(id);
+    loadDashboard();
+  } catch (err) {
+    showToast(err.message || 'Could not recalculate quote');
+  }
+}
+
+async function rebuildSite(id) {
+  try {
+    showToast('Rebuilding site from client requirements…', 'success');
+    const result = await api(`/projects/${id}/regenerate-preview`, { method: 'POST', body: '{}' });
+    showToast(result.message || 'Site rebuilt', 'success');
+    openProject(id);
+    if (result.preview_url) setTimeout(() => openPreview(id, ''), 500);
+  } catch (err) {
+    showToast(err.message || 'Rebuild failed');
   }
 }
 

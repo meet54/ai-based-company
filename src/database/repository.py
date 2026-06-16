@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.config import settings
@@ -26,10 +26,25 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_migrate_project_columns)
     from src.database.state_store import ensure_sync_tables, migrate_json_to_database
 
     ensure_sync_tables()
     migrate_json_to_database()
+
+
+def _migrate_project_columns(connection) -> None:
+    """Add new columns to existing SQLite projects table if missing."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(connection)
+    if "projects" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("projects")}
+    if "pricing_tier" not in cols:
+        connection.execute(text("ALTER TABLE projects ADD COLUMN pricing_tier VARCHAR(64) DEFAULT ''"))
+    if "source_type" not in cols:
+        connection.execute(text("ALTER TABLE projects ADD COLUMN source_type VARCHAR(64) DEFAULT ''"))
 
 
 def _parse_devs(raw: Optional[str]) -> list[str]:
@@ -52,6 +67,8 @@ def _project_from_db(row: ProjectDB) -> Project:
         requirements=row.requirements or "",
         deliverables=row.deliverables or "",
         tech_stack=row.tech_stack or "",
+        pricing_tier=getattr(row, "pricing_tier", "") or "",
+        source_type=getattr(row, "source_type", "") or "",
         current_stage=ProjectStage(row.current_stage),
         status=ProjectStatus(row.status),
         assigned_developers=_parse_devs(row.assigned_developers),
@@ -75,6 +92,8 @@ class Database:
                 requirements=project.requirements,
                 deliverables=project.deliverables,
                 tech_stack=project.tech_stack,
+                pricing_tier=project.pricing_tier,
+                source_type=project.source_type,
                 current_stage=project.current_stage.value,
                 status=project.status.value,
                 assigned_developers=json.dumps(project.assigned_developers),
@@ -110,6 +129,8 @@ class Database:
             row.requirements = project.requirements
             row.deliverables = project.deliverables
             row.tech_stack = project.tech_stack
+            row.pricing_tier = project.pricing_tier
+            row.source_type = project.source_type
             row.current_stage = project.current_stage.value
             row.status = project.status.value
             row.assigned_developers = json.dumps(project.assigned_developers)
@@ -123,6 +144,9 @@ class Database:
 
     async def save_quotation(self, quotation: Quotation) -> Quotation:
         async with async_session() as session:
+            await session.execute(
+                delete(QuotationDB).where(QuotationDB.project_id == quotation.project_id)
+            )
             row = QuotationDB(
                 project_id=quotation.project_id,
                 line_items=quotation.line_items,

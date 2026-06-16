@@ -34,6 +34,9 @@ from src.services.idle_worker import idle_worker
 from src.services.lead_scout import lead_scout
 from src.services.lead_scout_worker import lead_scout_worker
 from src.services.office_social_worker import office_social_worker
+from src.services.pricing import classify_tier, get_tier, list_tiers
+from src.services.requirements import extract_client_brief
+from src.services.site_builder import parse_site_spec
 from src.services.team_monitor import team_monitor
 from src.services.walkgether import walkgether
 from src.walkgether.repository import walkgether_db
@@ -322,6 +325,11 @@ async def dashboard():
     }
 
 
+@app.get("/api/pricing/tiers")
+async def get_pricing_tiers():
+    return {"currency": "USD", "tiers": list_tiers()}
+
+
 @app.get("/api/leads/live")
 async def get_live_leads():
     return {
@@ -352,24 +360,32 @@ async def approach_lead(lead_id: str):
         raise HTTPException(400, "Lead already converted")
 
     source_note = f"Source: {lead.get('platform_label')} · {lead.get('url', '')}"
+    pricing = lead.get("pricing_estimate") or {}
+    tier_id = pricing.get("tier_id") or classify_tier(f"{lead['title']} {lead['description']}")
+
     project = Project(
         title=f"{lead['company_name']} — {lead['title'][:60]}",
         client_company=lead["company_name"],
         client_name=lead["contact_name"],
         client_email=lead["contact_email"],
         description=f"{lead['description']}\n\n---\n{source_note}",
+        pricing_tier=tier_id,
+        source_type="freelance_lead",
         current_stage=ProjectStage.LEAD_GENERATION,
         status=ProjectStatus.ACTIVE,
-        ceo_notes=f"Discovered via {lead.get('platform_label')}",
+        ceo_notes=f"Discovered via {lead.get('platform_label')} · Est. ${pricing.get('estimated_usd', 0):,.0f} USD",
     )
     created = await db.create_project(project)
     lead_scout.mark_converted(lead_id, created.id)
     result = await workflow.run_full_pipeline(created.id, stop_at_ceo=True)
+    quotation = await db.get_quotation(created.id)
     return {
         "message": f"Approaching {lead['company_name']} — pipeline started!",
         "lead_id": lead_id,
         "approach_urls": lead.get("approach_urls", {}),
         "outreach_draft": lead.get("outreach_draft", ""),
+        "pricing_estimate": pricing,
+        "quotation": quotation.model_dump() if quotation else None,
         **result,
     }
 
@@ -398,12 +414,15 @@ async def get_project(project_id: int):
 
 @app.post("/api/projects")
 async def create_project(req: CreateProjectRequest):
+    tier_id = classify_tier(req.description)
     project = Project(
         title=req.title,
         client_company=req.client_company,
         client_name=req.client_name,
         client_email=req.client_email,
         description=req.description,
+        pricing_tier=tier_id,
+        source_type="manual",
         current_stage=ProjectStage.LEAD_GENERATION,
         status=ProjectStatus.ACTIVE,
     )
@@ -443,6 +462,15 @@ async def run_all_stages(project_id: int):
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/projects/{project_id}/requote")
+async def requote_project(project_id: int):
+    """Recalculate quotation using fixed USD tier pricing."""
+    try:
+        return await workflow.regenerate_quotation(project_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.post("/api/projects/{project_id}/ceo-approve")
 async def ceo_approve(project_id: int, req: CEOApprovalRequest):
     try:
@@ -467,6 +495,8 @@ async def simulate_lead(req: SimulateLeadRequest):
         client_name=req.contact_name,
         client_email=req.contact_email,
         description=req.need,
+        pricing_tier=classify_tier(req.need),
+        source_type="simulated",
         current_stage=ProjectStage.LEAD_GENERATION,
         status=ProjectStatus.ACTIVE,
     )
@@ -480,14 +510,21 @@ async def simulate_lead(req: SimulateLeadRequest):
 
 @app.post("/api/projects/{project_id}/regenerate-preview")
 async def regenerate_preview(project_id: int):
-    """Rebuild preview using premium template when AI output was empty/stub."""
+    """Rebuild preview from parsed client requirements."""
     project = await db.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
     result = code_generator.write_premium_site(project)
     return {
-        "message": f"Preview rebuilt for {project.title}",
+        "message": f"Site rebuilt from client requirements for {project.title}",
         "preview_url": code_generator.preview_url(project_id),
+        "spec": {
+            k: getattr(parse_site_spec(project), k)
+            for k in (
+                "wants_carousel", "wants_about", "wants_contact",
+                "wants_ecommerce", "brand_name", "owner_name",
+            )
+        },
         **result,
     }
 
@@ -527,11 +564,22 @@ async def client_inquiry(req: ClientInquiryRequest):
         "mobile": "Mobile App",
         "ecommerce": "E-Commerce",
         "custom": "Custom Software",
+        "single_page": "Single Page Website",
+        "dynamic_2_page": "Dynamic 2-Page Website",
     }
+    tier_id = req.service_tier or classify_tier(
+        f"{req.description} {req.must_have_features}",
+        project_type=req.project_type,
+    )
+    tier = get_tier(tier_id)
     project_type = type_labels.get(req.project_type, req.project_type)
-    title = f"{req.company_name} — {project_type}"
+    title = f"{req.company_name} — {tier.label if tier else project_type}"
 
     description_parts = [req.description]
+    if req.pages_needed:
+        description_parts.append(f"Pages needed: {req.pages_needed}")
+    if req.must_have_features:
+        description_parts.append(f"Must-have features: {req.must_have_features}")
     if req.budget_range:
         description_parts.append(f"Budget: {req.budget_range}")
     if req.timeline:
@@ -539,24 +587,36 @@ async def client_inquiry(req: ClientInquiryRequest):
     if req.phone:
         description_parts.append(f"Phone: {req.phone}")
 
+    brief = extract_client_brief("\n".join(description_parts), title)
+
     project = Project(
         title=title,
         client_company=req.company_name,
         client_name=req.contact_name,
         client_email=req.contact_email,
         description="\n".join(description_parts),
+        pricing_tier=tier_id,
+        source_type="client_inquiry",
         current_stage=ProjectStage.LEAD_GENERATION,
         status=ProjectStatus.ACTIVE,
+        ceo_notes=f"Public inquiry · Tier: {tier.label if tier else tier_id} · Est. ${tier.base_usd if tier else 0:,.0f} USD",
     )
     created = await db.create_project(project)
     result = await workflow.run_full_pipeline(created.id, stop_at_ceo=True)
+    quotation = await db.get_quotation(created.id)
+    est = tier.base_usd if tier else 0
     return {
         "success": True,
         "message": (
             f"Thank you {req.contact_name}! Your request has been received. "
-            f"Our team will review it and send a quotation to {req.contact_email}."
+            f"Our team is preparing a quotation (typically from ${est:,.0f} USD for {tier.label if tier else 'your project type'}). "
+            f"We will follow up at {req.contact_email}."
         ),
         "project_id": created.id,
+        "pricing_tier": tier_id,
+        "estimated_usd": est,
+        "requirements_preview": brief,
+        "quotation": quotation.model_dump() if quotation else None,
         **result,
     }
 

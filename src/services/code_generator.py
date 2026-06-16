@@ -5,6 +5,8 @@ from pathlib import Path
 from src.config import settings
 from src.models.schemas import Project
 from src.services.llm import llm_service
+from src.services.pricing import classify_tier
+from src.services.site_builder import build_requirement_site, parse_site_spec
 from src.services.website_templates import build_premium_site
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -56,34 +58,36 @@ class CodeGenerator:
                     f.unlink()
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        prompt = self._build_prompt(project)
-        system = (
-            "You are an elite frontend developer at a top IT agency. "
-            "Build a STUNNING, production-quality website that fulfills ALL client requirements.\n"
-            "Return ONLY valid JSON: {\"files\": [{\"path\": \"relative/path.ext\", \"content\": \"...\"}]}\n\n"
-            "MANDATORY QUALITY STANDARDS:\n"
-            "- Premium dark/light modern design (like Stripe, Linear, Vercel quality)\n"
-            "- Google Fonts (Inter + display font), CSS variables, gradients, glass effects\n"
-            "- Hero section, features from requirements, about, contact form, footer\n"
-            "- Fully responsive mobile-first CSS\n"
-            "- Implement EVERY requirement the client listed — no generic placeholder text\n"
-            "- Real content based on client industry and project description\n"
-            "- Smooth hover effects and professional spacing\n"
-            "- Files: index.html, styles.css, app.js, README.md (min 4 files)\n"
-            "- No markdown fences — raw JSON only\n"
-            "- Escape newlines in JSON strings properly"
+        tier = classify_tier(
+            f"{project.title} {project.description} {project.requirements}",
+            explicit_tier=project.pricing_tier or "",
         )
+        website_tiers = {"single_page", "dynamic_2_page", "ecommerce_starter"}
 
-        raw = await llm_service.complete(system, prompt)
-        files = self._parse_files(raw, project)
-        if not self._is_valid_generation(files):
-            files = build_premium_site(
-                title=project.title,
-                client=project.client_name,
-                company=settings.company_name,
-                description=project.description,
-                requirements=project.requirements or project.description,
+        if tier in website_tiers:
+            files = build_requirement_site(project)
+        else:
+            prompt = self._build_prompt(project)
+            spec = parse_site_spec(project)
+            system = (
+                "You are an elite frontend developer. Build a website that matches the "
+                "client requirement checklist EXACTLY.\n"
+                "Return ONLY valid JSON: {\"files\": [{\"path\": \"relative/path.ext\", \"content\": \"...\"}]}\n\n"
+                f"REQUIRED SECTIONS (only if flagged yes):\n"
+                f"- Carousel/slider: {'YES — visible auto-rotating slides on homepage' if spec.wants_carousel else 'NO — do not add'}\n"
+                f"- About Us section: {'YES' if spec.wants_about else 'NO'}\n"
+                f"- Contact form: {'YES' if spec.wants_contact else 'NO'}\n"
+                f"- Product/shop page: {'YES' if spec.wants_ecommerce else 'NO — do not add products or shop'}\n"
+                f"- Footer must show client name: {spec.owner_name}\n"
+                f"- Do NOT paste budget, phone, or timeline text in the hero.\n"
+                "- Use brand name in header, not agency name.\n"
+                "- Files: index.html, styles.css, app.js, README.md\n"
+                "- Raw JSON only, no markdown fences"
             )
+            raw = await llm_service.complete(system, prompt)
+            files = self._parse_files(raw, project)
+            if not self._is_valid_generation(files):
+                files = build_requirement_site(project)
 
         written = []
         for item in files:
@@ -102,19 +106,17 @@ class CodeGenerator:
         }
 
     def _build_prompt(self, project: Project) -> str:
+        spec = parse_site_spec(project)
         parts = [
+            f"Brand: {spec.brand_name}",
+            f"Client owner name (footer): {spec.owner_name}",
             f"Project: {project.title}",
-            f"Client: {project.client_name} ({project.client_company})",
-            f"Description: {project.description}",
+            f"Client brief (build these features, do not show budget/phone in UI): {spec.tagline}",
         ]
         if project.requirements:
-            parts.append(f"Requirements:\n{project.requirements[:3000]}")
-        if project.tech_stack:
-            parts.append(f"Tech Stack:\n{project.tech_stack[:1000]}")
+            parts.append(f"Full requirements doc:\n{project.requirements[:3000]}")
         parts.append(
-            "CRITICAL: The website MUST look premium and professional — not basic or ugly. "
-            "Every requirement above must appear as a real section or feature on the site. "
-            "Use a cohesive color scheme matching the client's industry."
+            "Build ONLY what the client asked for. No generic ecommerce unless explicitly requested."
         )
         return "\n\n".join(parts)
 
@@ -154,24 +156,11 @@ class CodeGenerator:
                         return files
         except (json.JSONDecodeError, KeyError):
             pass
-        return build_premium_site(
-            title=project.title,
-            client=project.client_name,
-            company=settings.company_name,
-            description=project.description,
-            requirements=project.requirements or project.description,
-        )
-
+        return build_requirement_site(project)
 
     def write_premium_site(self, project: Project) -> dict:
-        """Write premium template files for an existing project (repair bad generations)."""
-        files = build_premium_site(
-            title=project.title,
-            client=project.client_name,
-            company=settings.company_name,
-            description=project.description,
-            requirements=project.requirements or project.description,
-        )
+        """Rebuild site from parsed client requirements (repair bad generations)."""
+        files = build_requirement_site(project)
         out_dir = self.project_dir(project.id)
         out_dir.mkdir(parents=True, exist_ok=True)
         written = []

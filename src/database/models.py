@@ -21,6 +21,8 @@ class ProjectDB(Base):
     requirements: Mapped[str] = mapped_column(Text, default="")
     deliverables: Mapped[str] = mapped_column(Text, default="")
     tech_stack: Mapped[str] = mapped_column(Text, default="")
+    pricing_tier: Mapped[str] = mapped_column(String(64), default="")
+    source_type: Mapped[str] = mapped_column(String(64), default="")
     current_stage: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), default="active")
     assigned_developers: Mapped[Optional[str]] = mapped_column(Text, default="[]")

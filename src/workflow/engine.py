@@ -1,12 +1,15 @@
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.agents.base import get_agent
 from src.agents.prompts import STAGE_AGENTS
-from src.agents.team import TEAM_ROSTER, get_developers, get_member_by_role
+from src.agents.team import TEAM_ROSTER, get_member_by_role
 from src.config import settings
 from src.services.code_generator import code_generator
+from src.services.developer_assignment import assign_developers
+from src.services.pricing import build_quotation, classify_tier, get_tier
+from src.services.requirements import format_requirements_document
 from src.services.team_monitor import team_monitor
 from src.services.workflow_lock import workflow_lock
 from src.database.repository import db
@@ -29,11 +32,13 @@ STAGE_TASKS: dict[ProjectStage, str] = {
     ),
     ProjectStage.REQUIREMENT_GATHERING: (
         "Conduct a thorough requirements discovery session with the client. "
-        "Document all functional and non-functional requirements."
+        "Document functional requirements, pages, integrations, timeline, and acceptance criteria. "
+        "Use ONLY the client's stated needs — do not invent features they did not ask for."
     ),
     ProjectStage.QUOTATION: (
-        "Create a detailed project quotation with line items, hours, rates, "
-        "subtotal, tax, and total. Return structured pricing data."
+        "Prepare quotation notes aligned to our USD service tiers. "
+        "Do not exceed tier base pricing unless add-ons are clearly justified. "
+        "Return JSON with line_items array (item, amount fields)."
     ),
     ProjectStage.CEO_APPROVAL: (
         "Quotation is ready for CEO review. Awaiting CEO approval before project kickoff."
@@ -42,8 +47,11 @@ STAGE_TASKS: dict[ProjectStage, str] = {
         "Plan the project: assign developers, create sprint plan, and set milestones."
     ),
     ProjectStage.DEVELOPMENT: (
-        "Build the software/website according to requirements. "
-        "Deliver frontend, backend, and integration work."
+        "Build the website or software EXACTLY per the requirements document. "
+        "For websites: include carousel only if requested, about us if requested, "
+        "contact form if requested, client name in footer. "
+        "Do NOT add product/shop pages unless the client asked for ecommerce. "
+        "Never paste budget, phone, or timeline into visible page text."
     ),
     ProjectStage.TEAM_LEADER_REVIEW: (
         "Cross-check all deliverables against requirements. "
@@ -204,26 +212,57 @@ class WorkflowEngine:
         combined = "\n".join(r["output"] for r in results)
 
         if stage == ProjectStage.REQUIREMENT_GATHERING:
-            project.requirements = combined
+            if not project.pricing_tier:
+                project.pricing_tier = classify_tier(
+                    f"{project.title} {project.description}",
+                    explicit_tier=project.pricing_tier,
+                )
+            tier = get_tier(project.pricing_tier)
+            tier_label = tier.label if tier else ""
+            project.requirements = format_requirements_document(
+                project.title,
+                project.client_name,
+                project.description,
+                combined,
+                tier_label=tier_label,
+            )
             ba = get_agent(AgentRole.BUSINESS_ANALYST)
             ba_response = await ba.execute(
-                "Create a formal Business Requirements Document with tech stack recommendation.",
+                "Expand the requirements doc with user stories and tech stack. "
+                "Stay within the agreed service tier scope.",
                 project,
-                combined,
+                project.requirements,
             )
-            project.requirements = ba_response.content
-            tech_match = re.search(r"(?:Tech Stack|Recommended Tech)[:\s]*([^\n]+(?:\n- [^\n]+)*)", ba_response.content, re.I)
+            project.requirements = format_requirements_document(
+                project.title,
+                project.client_name,
+                project.description,
+                ba_response.content,
+                tier_label=tier_label,
+            )
+            tech_match = re.search(
+                r"(?:Tech Stack|Recommended Tech)[:\s]*([^\n]+(?:\n- [^\n]+)*)",
+                ba_response.content,
+                re.I,
+            )
             if tech_match:
                 project.tech_stack = tech_match.group(1).strip()
 
         elif stage == ProjectStage.QUOTATION:
-            quotation = self._parse_quotation(project.id, combined)
+            fresh = await db.get_project(project.id)
+            if fresh:
+                project = fresh
+            blob = f"{project.title} {project.description} {project.requirements}"
+            project.pricing_tier = classify_tier(
+                blob,
+                explicit_tier=project.pricing_tier or "",
+            )
+            quotation = build_quotation(project.id, project, project.pricing_tier)
             await db.save_quotation(quotation)
             project.quotation_total = quotation.total_amount
 
         elif stage == ProjectStage.PROJECT_KICKOFF:
-            devs = get_developers()
-            project.assigned_developers = [d.name for d in devs[:3]]
+            project.assigned_developers = assign_developers(project)
 
         elif stage == ProjectStage.DEVELOPMENT:
             project.deliverables = combined
@@ -256,43 +295,46 @@ class WorkflowEngine:
 
         await db.update_project(project)
 
-    def _parse_quotation(self, project_id: int, content: str) -> Quotation:
+    async def regenerate_quotation(self, project_id: int) -> dict:
+        """Rebuild quotation from tier pricing (fixes legacy $15k+ quotes)."""
+        project = await db.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+        blob = f"{project.title} {project.description} {project.requirements}"
+        project.pricing_tier = classify_tier(blob, explicit_tier=project.pricing_tier or "")
+        quotation = build_quotation(project.id, project, project.pricing_tier)
+        await db.save_quotation(quotation)
+        project.quotation_total = quotation.total_amount
+        if project.current_stage == ProjectStage.CEO_APPROVAL:
+            project.status = ProjectStatus.ACTIVE
+        await db.update_project(project)
+        return {
+            "status": "success",
+            "pricing_tier": project.pricing_tier,
+            "quotation": quotation.model_dump(),
+            "project": project.model_dump(),
+        }
+
+    def _extract_line_items(self, content: str) -> list[dict]:
         try:
             json_match = re.search(r"\{[\s\S]*\}", content)
             if json_match:
                 data = json.loads(json_match.group())
-                items = data.get("line_items", [])
-                subtotal = sum(i.get("amount", 0) for i in items)
-                tax_pct = 18.0
-                tax_amount = round(subtotal * tax_pct / 100, 2)
-                total = round(subtotal + tax_amount, 2)
-                valid = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
-                return Quotation(
-                    project_id=project_id,
-                    line_items=items,
-                    subtotal=subtotal,
-                    tax_percent=tax_pct,
-                    tax_amount=tax_amount,
-                    total_amount=total,
-                    valid_until=valid,
-                    notes=data.get("notes", "Payment to CEO business account."),
-                )
+                return data.get("line_items", [])
         except (json.JSONDecodeError, KeyError):
             pass
+        return []
 
-        subtotal = 15000.0
-        tax_amount = round(subtotal * 0.18, 2)
-        return Quotation(
-            project_id=project_id,
-            line_items=[
-                {"item": "Full Project Development", "hours": 200, "rate": 75, "amount": subtotal}
-            ],
-            subtotal=subtotal,
-            tax_amount=tax_amount,
-            total_amount=subtotal + tax_amount,
-            valid_until=(datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d"),
-            notes="Standard quotation. Payment to CEO account.",
+    def _parse_quotation(self, project_id: int, content: str) -> Quotation:
+        project_stub = Project(
+            id=project_id,
+            title="",
+            client_company="",
+            client_name="",
+            client_email="",
+            description=content,
         )
+        return build_quotation(project_id, project_stub, llm_line_items=self._extract_line_items(content))
 
     async def _advance_project(
         self, project: Project, completed_stage: ProjectStage, results: list[dict]

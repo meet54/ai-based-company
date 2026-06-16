@@ -127,6 +127,8 @@ class Project(BaseModel):
     requirements: str = ""
     deliverables: str = ""
     tech_stack: str = ""
+    pricing_tier: str = ""
+    source_type: str = ""
     current_stage: ProjectStage = ProjectStage.LEAD_GENERATION
     status: ProjectStatus = ProjectStatus.ACTIVE
     assigned_developers: list[str] = Field(default_factory=list)
@@ -157,9 +159,12 @@ class ClientInquiryRequest(BaseModel):
     contact_email: str
     phone: str = ""
     project_type: str = "website"
+    service_tier: str = ""
     description: str
     budget_range: str = ""
     timeline: str = ""
+    pages_needed: str = ""
+    must_have_features: str = ""
 
 
 class DashboardStats(BaseModel):
