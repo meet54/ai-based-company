@@ -1,7 +1,10 @@
 /**
  * Virtual office — 10:00 AM–6:15 PM with staggered arrival and departure.
+ * Isometric floor plan (primary) matching labeled room layout.
  */
 const OfficeSimulator = (() => {
+  const USE_3D_OFFICE = true;
+
   const DAILY_HOURS = 8 * 60;
   const DAILY_HOURS_MS = DAILY_HOURS * 60000;
 
@@ -14,25 +17,24 @@ const OfficeSimulator = (() => {
   const OFFICE_HOURS_LABEL = '10:00 AM – 6:15 PM';
 
   const POIS = {
-    entrance: { x: 8, y: 92 },
-    coffee: { x: 88, y: 12 },
-    lounge: { x: 50, y: 88 },
-    hallway: { x: 50, y: 52 },
+    entrance: { x: 11, y: 90 },
+    coffee: { x: 86, y: 18 },
+    lounge: { x: 11, y: 48 },
+    hallway: { x: 11, y: 48 },
   };
 
   const DESKS = buildDeskGrid();
 
   const COFFEE_SLOTS = [
-    { x: 62, y: 10 }, { x: 72, y: 14 }, { x: 82, y: 10 }, { x: 68, y: 22 }, { x: 88, y: 18 },
+    { x: 78, y: 12 }, { x: 86, y: 16 }, { x: 92, y: 12 }, { x: 82, y: 24 }, { x: 90, y: 28 },
   ];
 
   const PHONE_SLOTS = [
-    { x: 62, y: 58 }, { x: 72, y: 64 }, { x: 82, y: 56 }, { x: 68, y: 72 }, { x: 88, y: 68 },
+    { x: 80, y: 72 }, { x: 90, y: 76 },
   ];
 
   const CHILL_SLOTS = [
-    { x: 12, y: 58 }, { x: 24, y: 64 }, { x: 36, y: 58 }, { x: 48, y: 66 }, { x: 20, y: 74 },
-    { x: 32, y: 80 }, { x: 44, y: 76 },
+    { x: 10, y: 12 }, { x: 16, y: 16 }, { x: 8, y: 20 },
   ];
 
   // Chill room slots — world coords aligned to 3D props (floor 24×18)
@@ -41,37 +43,37 @@ const OfficeSimulator = (() => {
   }
 
   const GAME_SLOTS = {
-    chess: [
-      worldSlot(2.8, 11.0), worldSlot(3.3, 10.6),
-    ],
-    pool: [
-      worldSlot(4.2, 14.6), worldSlot(4.9, 15.1),
-    ],
-    pingpong: [
-      worldSlot(7.0, 13.6), worldSlot(8.0, 13.0),
-    ],
-    console: [
-      worldSlot(11.3, 11.5), worldSlot(11.0, 11.1), worldSlot(11.6, 11.0),
-    ],
+    chess: [{ x: 8, y: 14 }, { x: 14, y: 12 }],
+    pool: [{ x: 12, y: 18 }],
+    pingpong: [{ x: 16, y: 16 }],
+    console: [{ x: 10, y: 10 }, { x: 14, y: 10 }, { x: 12, y: 14 }],
   };
 
   const LOUNGE_SLOTS = [
-    { x: 22, y: 30 }, { x: 34, y: 32 }, { x: 46, y: 30 }, { x: 28, y: 38 }, { x: 40, y: 38 },
+    { x: 8, y: 42 }, { x: 14, y: 46 }, { x: 10, y: 52 }, { x: 16, y: 54 },
   ];
 
   const HALLWAY_SLOTS = [
-    { x: 22, y: 52 }, { x: 36, y: 50 }, { x: 50, y: 54 }, { x: 64, y: 50 }, { x: 78, y: 52 },
+    { x: 38, y: 82 }, { x: 50, y: 86 }, { x: 62, y: 82 },
   ];
 
   function buildDeskGrid() {
-    // Dev floor only — top-left quadrant (x ~8–52%, y ~10–38%)
-    const rows = [
-      { y: 12, xs: [10, 22, 34, 46] },
-      { y: 24, xs: [10, 22, 34, 46, 50] },
-      { y: 36, xs: [16, 28, 40, 52] },
-    ];
+    const rows = ['A', 'B', 'C', 'D', 'E'];
+    const cols = [1, 2, 3, 4, 5];
+    const startX = 32;
+    const startY = 22;
+    const gapX = 7.2;
+    const gapY = 11.5;
     const desks = [];
-    rows.forEach((row) => row.xs.forEach((x) => desks.push({ x, y: row.y })));
+    rows.forEach((row, ri) => {
+      cols.forEach((col, ci) => {
+        desks.push({
+          id: `${row}${col}`,
+          x: startX + ci * gapX,
+          y: startY + ri * gapY,
+        });
+      });
+    });
     return desks;
   }
 
@@ -315,6 +317,45 @@ const OfficeSimulator = (() => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  function localTimePeriod() {
+    const hour = new Date().getHours();
+    if (hour >= 21 || hour < 6) return 'night';
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'noon';
+    return 'evening';
+  }
+
+  const TIME_OF_DAY_LABELS = {
+    night: '🌙 Night',
+    morning: '🌅 Morning',
+    noon: '☀️ Afternoon',
+    evening: '🌆 Evening',
+  };
+
+  function applyLocalTimeTheme() {
+    const period = localTimePeriod();
+    const periods = ['night', 'morning', 'noon', 'evening'];
+    const floor = container?.querySelector('.office-floor');
+    const wrap = container?.querySelector('.office-wrap');
+    [floor, wrap].forEach((el) => {
+      if (!el) return;
+      periods.forEach((p) => el.classList.remove(`office-time-${p}`));
+      el.classList.add(`office-time-${period}`);
+      el.setAttribute('data-time-period', period);
+    });
+    const badge = document.getElementById('office-time-of-day');
+    const tzEl = document.getElementById('office-timezone');
+    if (badge) badge.textContent = TIME_OF_DAY_LABELS[period] || period;
+    if (tzEl) {
+      try {
+        tzEl.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+      } catch {
+        tzEl.textContent = 'Local time';
+      }
+    }
+    scene3d?.applyTimeOfDay?.(period);
+  }
+
   function formatTodayDate() {
     return new Date().toLocaleDateString([], {
       weekday: 'long',
@@ -451,25 +492,66 @@ const OfficeSimulator = (() => {
     }).join('');
   }
 
+  function showMemberCard(member, agent) {
+    const card = document.getElementById('office-member-card');
+    if (!card) return;
+    if (!member) {
+      card.classList.add('hidden');
+      return;
+    }
+    const status = memberStatus(member, member.name);
+    const deskId = agent?.desk?.id || '—';
+    const dotClass = status.present ? 'online' : 'offline';
+    card.classList.remove('hidden');
+    card.innerHTML = `
+      <div class="omc-avatar">
+        <img src="${faceUrl(member.name)}" alt="" />
+        <span class="omc-dot ${dotClass}"></span>
+      </div>
+      <div class="omc-body">
+        <strong>${escapeHtml(firstName(member.name))}</strong>
+        <span class="omc-status">${escapeHtml(status.label)}</span>
+        <span class="omc-desk">Desk · ${escapeHtml(deskId)}</span>
+      </div>
+      <button type="button" class="omc-close" aria-label="Close">&times;</button>
+    `;
+    card.querySelector('.omc-close')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearMemberPov();
+    });
+    document.querySelectorAll('.iso-desk').forEach((el) => {
+      el.classList.toggle('is-focus', el.dataset.deskId === deskId);
+    });
+  }
+
   function setPovHighlight(name) {
     povMember = name || null;
     rosterEl?.querySelectorAll('[data-agent]').forEach((el) => {
       el.classList.toggle('is-pov-focus', !!name && el.dataset.agent === name);
     });
+    agents.forEach((agent, id) => {
+      agent.el?.classList.toggle('is-focus', !!name && id === name);
+    });
+    if (!name) {
+      document.querySelectorAll('.iso-desk').forEach((el) => el.classList.remove('is-focus'));
+      document.getElementById('office-member-card')?.classList.add('hidden');
+    }
   }
 
   function focusMember(name) {
-    if (!scene3d) return;
     const member = memberByName(name);
     const agent = agents.get(name);
     if (!member || !agent) return;
-    let gameKey = null;
-    if (member.office_activity === 'gaming' || agent.state === 'gaming') {
-      const key = normalizeGameKey(parseGameName(member));
-      if (key !== 'default') gameKey = key;
-    }
     setPovHighlight(name);
-    scene3d.focusOnCharacter(name, { state: agent.state, gameKey });
+    showMemberCard(member, agent);
+    if (scene3d) {
+      let gameKey = null;
+      if (member.office_activity === 'gaming' || agent.state === 'gaming') {
+        const key = normalizeGameKey(parseGameName(member));
+        if (key !== 'default') gameKey = key;
+      }
+      scene3d.focusOnCharacter(name, { state: agent.state, gameKey });
+    }
   }
 
   function clearMemberPov() {
@@ -562,34 +644,96 @@ const OfficeSimulator = (() => {
   }
 
   function enable2DFallback() {
-    const fb = document.getElementById('office-2d-fallback');
-    if (fb) fb.classList.remove('hidden');
+    document.getElementById('office-iso-floor')?.classList.remove('hidden-behind-3d');
     agentsEl = document.getElementById('office-agents');
   }
 
-  function build2DFloorHtml() {
+  function buildIsometricFloorHtml() {
     const deskHtml = DESKS.map((d) => `
-      <div class="office-desk" style="left:${d.x}%;top:${d.y}%">
-        <div class="desk-chair"></div>
-        <div class="desk-surface"></div>
+      <div class="iso-desk" data-desk-id="${d.id}">
+        <div class="iso-desk-chair"></div>
+        <div class="iso-desk-surface">
+          <div class="iso-desk-monitor"></div>
+          <div class="iso-desk-keyboard"></div>
+          <div class="iso-desk-plant"></div>
+        </div>
+        <span class="iso-desk-id">${d.id}</span>
       </div>
     `).join('');
+
     return `
-      <div id="office-2d-fallback" class="office-2d-fallback">
-        <div class="office-zone office-zone-entrance">🚪 Entrance</div>
-        <div class="office-zone office-zone-coffee">☕ Coffee Room</div>
-        <div class="office-zone office-zone-phone">📞 Call Room</div>
-        <div class="office-zone office-zone-chill">🎮 Chill Room</div>
-        <div class="office-zone office-zone-dev">💻 Dev Floor</div>
-        <div class="office-floor-map">
-          ${deskHtml}
-          <div id="office-agents" class="office-agents"></div>
+      <div id="office-iso-floor" class="office-iso-floor">
+        <div class="office-iso-viewport">
+          <div class="office-iso-stage">
+            <div class="office-iso-map">
+              <div class="iso-room iso-room-gaming">
+                <div class="iso-room-floor"></div>
+                <div class="iso-gaming-tv"></div>
+                <div class="iso-gaming-couch"></div>
+                <div class="iso-gaming-stand"></div>
+              </div>
+              <div class="iso-room iso-room-meeting">
+                <div class="iso-room-floor"></div>
+                <div class="iso-meeting-table"></div>
+                <div class="iso-meeting-chair iso-chair-1"></div>
+                <div class="iso-meeting-chair iso-chair-2"></div>
+                <div class="iso-meeting-chair iso-chair-3"></div>
+                <div class="iso-meeting-chair iso-chair-4"></div>
+                <div class="iso-meeting-chair iso-chair-5"></div>
+                <div class="iso-meeting-chair iso-chair-6"></div>
+              </div>
+              <div class="iso-room iso-room-entrance">
+                <div class="iso-room-floor"></div>
+                <div class="iso-entrance-doors"></div>
+                <div class="iso-entrance-mat"></div>
+              </div>
+              <div class="iso-room iso-room-dev">
+                <div class="iso-room-floor"></div>
+                <div class="iso-dev-desks">${deskHtml}</div>
+              </div>
+              <div class="iso-room iso-room-coffee">
+                <div class="iso-room-floor"></div>
+                <div class="iso-coffee-counter"></div>
+                <div class="iso-coffee-machine"></div>
+                <div class="iso-coffee-table iso-ct-1"><span></span><span></span><span></span><span></span></div>
+                <div class="iso-coffee-table iso-ct-2"><span></span><span></span><span></span><span></span></div>
+                <div class="iso-coffee-table iso-ct-3"><span></span><span></span><span></span><span></span></div>
+                <div class="iso-coffee-table iso-ct-4"><span></span><span></span><span></span><span></span></div>
+              </div>
+              <div class="iso-room iso-room-calls">
+                <div class="iso-room-floor"></div>
+                <div class="iso-call-booth iso-booth-1"><div class="iso-booth-glass"></div><div class="iso-booth-desk"></div></div>
+                <div class="iso-call-booth iso-booth-2"><div class="iso-booth-glass"></div><div class="iso-booth-desk"></div></div>
+              </div>
+              <div id="office-agents" class="office-agents office-iso-agents"></div>
+            </div>
+          </div>
+          <div class="office-iso-pills">
+            <span class="iso-pill iso-pill-gaming">🎮 Gaming Room</span>
+            <span class="iso-pill iso-pill-meeting">🤝 Meeting Room</span>
+            <span class="iso-pill iso-pill-entrance">🚪 Main Entrance</span>
+            <span class="iso-pill iso-pill-dev">💻 Dev Floor</span>
+            <span class="iso-pill iso-pill-coffee">☕ Coffee Break Room</span>
+            <span class="iso-pill iso-pill-calls">📞 Call Booths</span>
+          </div>
         </div>
       </div>
     `;
   }
 
+  function build2DFloorHtml() {
+    return buildIsometricFloorHtml();
+  }
+
+  function officeMemberCardHtml() {
+    return '<div id="office-member-card" class="office-member-card hidden" aria-live="polite"></div>';
+  }
+
   async function initScene3D(wrapEl) {
+    if (!USE_3D_OFFICE) {
+      enable2DFallback();
+      return null;
+    }
     if (!wrapEl) {
       enable2DFallback();
       return null;
@@ -602,13 +746,25 @@ const OfficeSimulator = (() => {
       if (scene3d) scene3d.dispose();
       scene3d = new mod.Office3DScene(wrapEl);
       scene3d.buildDesks(DESKS);
-      scene3d.onMemberClick = (name) => setPovHighlight(name);
-      scene3d.onPovExit = () => setPovHighlight(null);
-      document.getElementById('office-2d-fallback')?.classList.add('hidden');
+      scene3d.onMemberClick = (name) => focusMember(name);
+      scene3d.onPovExit = () => clearMemberPov();
+      scene3d.onTimeOfDayChange = (period) => {
+        const badge = document.getElementById('office-time-of-day');
+        if (badge) badge.textContent = TIME_OF_DAY_LABELS[period] || period;
+      };
+      document.getElementById('office-iso-floor')?.classList.add('hidden-behind-3d');
       return scene3d;
     } catch (err) {
       console.error('3D office failed:', err);
       wrapEl.innerHTML = '';
+      const floor = container?.querySelector('.office-floor');
+      if (floor && !document.getElementById('office-iso-floor')) {
+        floor.insertAdjacentHTML('afterbegin', buildIsometricFloorHtml());
+        const legend = floor.querySelector('.office-3d-legend');
+        if (legend) legend.className = 'office-iso-legend';
+        floor.classList.remove('office-floor-3d-mode');
+        floor.classList.add('office-floor-iso-mode');
+      }
       enable2DFallback();
       return null;
     }
@@ -903,18 +1059,21 @@ const OfficeSimulator = (() => {
               <div class="office-hours-status-row">
                 <span id="office-hours-status" class="office-hours-status closed">Office closed</span>
               </div>
+              <span id="office-time-of-day" class="office-time-of-day">🌙 Night</span>
+              <span id="office-timezone" class="office-timezone"></span>
               <span class="office-hours">${OFFICE_HOURS_LABEL}</span>
               <span id="office-clock" class="office-clock">--:--</span>
             </div>
           </div>
-          <div class="office-floor office-floor-full office-floor-3d-mode">
-            <div id="office-3d-wrap" class="office-3d-wrap"></div>
-            ${build2DFloorHtml()}
-            <div class="office-3d-legend">
+          <div class="office-floor office-floor-full ${USE_3D_OFFICE ? 'office-floor-3d-mode' : 'office-floor-iso-mode'}">
+            ${USE_3D_OFFICE ? '<div id="office-3d-wrap" class="office-3d-wrap"></div>' : buildIsometricFloorHtml()}
+            ${officeMemberCardHtml()}
+            <div class="${USE_3D_OFFICE ? 'office-3d-legend' : 'office-iso-legend'}">
               <span>💻 Dev Floor</span>
-              <span>☕ Coffee Room</span>
-              <span>📞 Call Room</span>
-              <span>🎮 Chill Room</span>
+              <span>☕ Coffee Break Room</span>
+              <span>📞 Call Booths</span>
+              <span>🎮 Gaming Room</span>
+              <span>🤝 Meeting Room</span>
             </div>
           </div>
         </div>
@@ -947,8 +1106,16 @@ const OfficeSimulator = (() => {
       e.preventDefault();
       focusMember(card.dataset.agent);
     });
-    const wrap3d = document.getElementById('office-3d-wrap');
+    const wrap3d = USE_3D_OFFICE ? document.getElementById('office-3d-wrap') : null;
     scene3dReady = initScene3D(wrap3d);
+    agentsEl = document.getElementById('office-agents');
+    applyLocalTimeTheme();
+    document.getElementById('office-iso-floor')?.addEventListener('click', (e) => {
+      const agentEl = e.target.closest('.office-agent');
+      if (agentEl?.dataset?.agentId) {
+        focusMember(agentEl.dataset.agentId);
+      }
+    });
   }
 
   function ensureAgent(member, index) {
@@ -958,47 +1125,40 @@ const OfficeSimulator = (() => {
     const desk = deskForMember(id);
 
     if (!agent) {
-      if (scene3d) {
-        agent = {
-          id, el: null, desk, deskIndex: deskIdx,
-          x: POIS.entrance.x, y: POIS.entrance.y,
-          state: 'away', apiWorking: false, lastOfficeZone: null,
-          entryMin: assignEntryMin(id),
-          leaveMin: assignLeaveMin(id),
-          shiftStart: null,
-          shiftEnded: false,
-          labelOffset: index % 5,
-        };
-        scene3d.upsertCharacter(id, member);
-      } else {
-        const el = document.createElement('div');
+      let el = null;
+      if (!scene3d) {
+        el = document.createElement('div');
         el.className = 'office-agent state-away';
+        el.dataset.agentId = id;
         el.innerHTML = `
-        <div class="agent-shadow"></div>
-        <div class="agent-body">
-          <img class="agent-face" src="${faceUrl(member.name)}" alt="${escapeHtml(member.name)}" />
-          <span class="agent-presence-dot offline"></span>
-        </div>
-        <div class="agent-label-stack">
-          <div class="agent-name-tag">${escapeHtml(firstName(member.name))}</div>
-          <div class="agent-activity-tag">Standing by</div>
-          <div class="agent-hours-wrap">
-            <div class="agent-hours-bar"><div class="agent-hours-fill"></div></div>
-            <div class="agent-hours-tag">8h shift</div>
+          <div class="agent-shadow"></div>
+          <div class="agent-body">
+            <img class="agent-face" src="${faceUrl(member.name)}" alt="${escapeHtml(member.name)}" />
+            <span class="agent-presence-dot offline"></span>
           </div>
-        </div>
-      `;
+          <div class="agent-label-stack">
+            <div class="agent-name-tag">${escapeHtml(firstName(member.name))}</div>
+            <div class="agent-activity-tag">Standing by</div>
+          </div>
+        `;
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          focusMember(id);
+        });
         if (agentsEl) agentsEl.appendChild(el);
-        agent = {
-          id, el, desk, deskIndex: deskIdx,
-          x: POIS.entrance.x, y: POIS.entrance.y,
-          state: 'away', apiWorking: false, lastOfficeZone: null,
-          entryMin: assignEntryMin(id),
-          leaveMin: assignLeaveMin(id),
-          shiftStart: null,
-          shiftEnded: false,
-          labelOffset: index % 5,
-        };
+      }
+      agent = {
+        id, el, desk, deskIndex: deskIdx,
+        x: POIS.entrance.x, y: POIS.entrance.y,
+        state: 'away', apiWorking: false, lastOfficeZone: null,
+        entryMin: assignEntryMin(id),
+        leaveMin: assignLeaveMin(id),
+        shiftStart: null,
+        shiftEnded: false,
+        labelOffset: index % 5,
+      };
+      if (scene3d) {
+        scene3d.upsertCharacter(id, member);
       }
       agents.set(id, agent);
     }
@@ -1038,6 +1198,7 @@ const OfficeSimulator = (() => {
     });
 
     updateOfficeStatusIndicators();
+    applyLocalTimeTheme();
     renderRoster();
   }
 
@@ -1047,15 +1208,15 @@ const OfficeSimulator = (() => {
     if (!clockEl) renderFloor();
     if (scene3dReady) await scene3dReady;
     if (scene3d) {
-      document.getElementById('office-2d-fallback')?.classList.add('hidden');
-      agents.forEach((agent, name) => {
+      document.getElementById('office-iso-floor')?.classList.add('hidden-behind-3d');
+      agents.forEach((agent) => {
         if (agent.el) {
           agent.el.remove();
           agent.el = null;
         }
       });
     } else {
-      enable2DFallback();
+      document.getElementById('office-iso-floor')?.classList.remove('hidden-behind-3d');
     }
     members.forEach((m, i) => ensureAgent(m, i));
     agents.forEach((agent, name) => {

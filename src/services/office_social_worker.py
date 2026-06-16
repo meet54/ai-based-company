@@ -6,6 +6,7 @@ import random
 from src.agents.team import TEAM_ROSTER
 from src.database.repository import db
 from src.models.schemas import ActivityLog, AgentRole
+from src.services.office_hours import is_office_open
 from src.services.office_state import office_state
 from src.services.team_monitor import team_monitor
 from src.services.workflow_lock import workflow_lock
@@ -121,6 +122,8 @@ class OfficeSocialWorker:
         return members
 
     async def _tick(self) -> None:
+        if not is_office_open():
+            return
         if workflow_lock.is_busy():
             return
 

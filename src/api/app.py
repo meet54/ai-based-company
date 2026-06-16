@@ -33,6 +33,7 @@ from src.services.code_generator import code_generator
 from src.services.idle_worker import idle_worker
 from src.services.lead_scout import lead_scout
 from src.services.lead_scout_worker import lead_scout_worker
+from src.services.office_hours import is_office_open, office_phase
 from src.services.office_social_worker import office_social_worker
 from src.services.pricing import classify_tier, get_tier, list_tiers
 from src.services.requirements import extract_client_brief
@@ -289,10 +290,15 @@ async def get_team_live():
     roster, working_count = team_monitor.build_live_roster(activity_by_agent)
     active_projects = [p for p in projects if p.status.value == "active"]
     inhouse_working = sum(1 for m in roster if m.get("inhouse") and m.get("status") == "working")
+    office_open = is_office_open()
+    away_count = len(roster) if not office_open else sum(1 for m in roster if m.get("status") == "away")
     return {
         "members": roster,
         "working_count": working_count,
-        "idle_count": len(roster) - working_count,
+        "idle_count": len(roster) - working_count - away_count if office_open else 0,
+        "away_count": away_count,
+        "office_open": office_open,
+        "office_phase": office_phase(),
         "active_projects": len(active_projects),
         "inhouse_project": walkgether.get_status(),
         "inhouse_working": inhouse_working,

@@ -200,15 +200,52 @@ function stageBadgeClass(stage) {
   return 'active';
 }
 
-// Navigation
+const VALID_VIEWS = [
+  'dashboard', 'projects', 'freelancing', 'inhouse',
+  'office', 'team', 'workflow', 'activity',
+];
+
+let currentView = null;
+
+function parseViewFromLocation() {
+  const hash = (location.hash || '').replace(/^#/, '').trim();
+  if (!hash) return 'dashboard';
+  return VALID_VIEWS.includes(hash) ? hash : 'dashboard';
+}
+
+function viewUrl(view) {
+  const base = `${location.pathname}${location.search}`;
+  return view === 'dashboard' ? base : `${base}#${view}`;
+}
+
+async function showView(view, { push = true } = {}) {
+  const v = VALID_VIEWS.includes(view) ? view : 'dashboard';
+  currentView = v;
+
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === v);
+  });
+  document.querySelectorAll('.view').forEach(el => {
+    el.classList.toggle('active', el.id === `view-${v}`);
+  });
+
+  if (push) {
+    history.pushState({ view: v }, '', viewUrl(v));
+  }
+
+  await loadView(v);
+}
+
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(`view-${btn.dataset.view}`).classList.add('active');
-    loadView(btn.dataset.view);
+    if (btn.dataset.view === currentView) return;
+    showView(btn.dataset.view);
   });
+});
+
+window.addEventListener('popstate', (e) => {
+  const v = e.state?.view || parseViewFromLocation();
+  showView(v, { push: false });
 });
 
 async function loadView(view) {
@@ -231,12 +268,18 @@ async function loadLiveOffice() {
     const data = await api('/team/live');
     const wg = data.inhouse_project;
     const phase = OfficeSimulator.officePhase();
-    const phaseNote = phase === 'closed' ? ' · Office closed' : '';
+    const officeOpen = data.office_open !== false;
+    const phaseNote = !officeOpen ? ' · Office closed' : '';
     const statsEl = document.getElementById('office-stats');
     if (statsEl) {
-      statsEl.textContent =
-        `${data.working_count} working · ${data.idle_count} idle · ${data.active_projects} client projects` +
-        (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '') + phaseNote;
+      if (!officeOpen) {
+        statsEl.textContent =
+          `${data.away_count ?? data.members.length} logged out · Office closed`;
+      } else {
+        statsEl.textContent =
+          `${data.working_count} working · ${data.idle_count} idle · ${data.active_projects} client projects` +
+          (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '') + phaseNote;
+      }
     }
     await OfficeSimulator.sync(data.members);
   };
@@ -247,6 +290,7 @@ async function loadLiveOffice() {
 
 async function loadTeamMonitor() {
   const monitorCardClass = (m) => {
+    if (m.status === 'away' || m.office_activity === 'offline') return 'away';
     if (m.status === 'working') return 'working';
     if (m.office_activity === 'coffee') return 'coffee';
     if (m.office_activity === 'phone') return 'phone';
@@ -256,6 +300,7 @@ async function loadTeamMonitor() {
   };
 
   const monitorTaskPrefix = (m) => {
+    if (m.status === 'away' || m.office_activity === 'offline') return '🌙 ';
     if (m.status === 'working') return '🟢 ';
     if (m.office_activity === 'coffee') return '☕ ';
     if (m.office_activity === 'phone') return '📞 ';
@@ -265,6 +310,7 @@ async function loadTeamMonitor() {
   };
 
   const monitorStatusClass = (m) => {
+    if (m.status === 'away' || m.office_activity === 'offline') return 'away';
     if (m.status === 'working') return 'working';
     if (m.office_activity === 'coffee') return 'coffee';
     if (m.office_activity === 'phone') return 'phone';
@@ -274,6 +320,7 @@ async function loadTeamMonitor() {
   };
 
   const monitorStatusLabel = (m) => {
+    if (m.status === 'away' || m.office_activity === 'offline') return 'Logged Out';
     if (m.status === 'working') return 'Currently Working';
     if (m.office_activity === 'coffee') return 'Coffee Break';
     if (m.office_activity === 'phone') return 'On a Call';
@@ -282,29 +329,47 @@ async function loadTeamMonitor() {
     return 'Last Activity';
   };
 
+  const updateMonitorIndicators = (officeOpen) => {
+    const dot = document.querySelector('#view-team .live-dot');
+    if (dot) {
+      dot.classList.toggle('office-open', officeOpen);
+      dot.classList.toggle('office-closed', !officeOpen);
+    }
+    const label = document.getElementById('monitor-live-label');
+    if (label) label.textContent = officeOpen ? 'LIVE' : 'OFFICE CLOSED';
+  };
+
   const render = async () => {
     const data = await api('/team/live');
     const wg = data.inhouse_project;
-    const coffeeCount = data.members.filter(m => m.office_activity === 'coffee').length;
-    const phoneCount = data.members.filter(m => m.office_activity === 'phone').length;
-    const gameCount = data.members.filter(m => m.office_activity === 'gaming').length;
-    const queryCount = data.members.filter(m => m.office_activity === 'query').length;
-    const socialParts = [];
-    if (coffeeCount) socialParts.push(`☕ ${coffeeCount} coffee`);
-    if (phoneCount) socialParts.push(`📞 ${phoneCount} on call`);
-    if (gameCount) socialParts.push(`🎮 ${gameCount} gaming`);
-    if (queryCount) socialParts.push(`💬 ${queryCount} Q&A`);
-    const socialNote = socialParts.length ? ` · ${socialParts.join(' · ')}` : '';
+    const officeOpen = data.office_open !== false;
+    updateMonitorIndicators(officeOpen);
 
-    document.getElementById('monitor-stats').textContent =
-      `${data.working_count} working · ${data.idle_count} idle · ${data.active_projects} client projects` +
-      (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '') + socialNote;
+    let statsText;
+    if (!officeOpen) {
+      statsText = `${data.away_count ?? data.members.length} logged out · Office closed`;
+    } else {
+      const coffeeCount = data.members.filter(m => m.office_activity === 'coffee').length;
+      const phoneCount = data.members.filter(m => m.office_activity === 'phone').length;
+      const gameCount = data.members.filter(m => m.office_activity === 'gaming').length;
+      const queryCount = data.members.filter(m => m.office_activity === 'query').length;
+      const socialParts = [];
+      if (coffeeCount) socialParts.push(`☕ ${coffeeCount} coffee`);
+      if (phoneCount) socialParts.push(`📞 ${phoneCount} on call`);
+      if (gameCount) socialParts.push(`🎮 ${gameCount} gaming`);
+      if (queryCount) socialParts.push(`💬 ${queryCount} Q&A`);
+      const socialNote = socialParts.length ? ` · ${socialParts.join(' · ')}` : '';
+      statsText =
+        `${data.working_count} working · ${data.idle_count} idle · ${data.active_projects} client projects` +
+        (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '') + socialNote;
+    }
+    document.getElementById('monitor-stats').textContent = statsText;
 
     document.getElementById('team-monitor-grid').innerHTML = data.members.map(m => `
       <div class="monitor-card ${monitorCardClass(m)} ${m.inhouse ? 'inhouse' : ''}">
         <div class="monitor-top">
           <div class="monitor-avatar">
-            ${m.office_activity === 'coffee' ? '☕' : m.office_activity === 'phone' ? '📞' : m.office_activity === 'gaming' ? '🎮' : m.office_activity === 'query' ? '💬' : (ROLE_EMOJI[m.role] || '🤖')}
+            ${m.status === 'away' || m.office_activity === 'offline' ? '🌙' : m.office_activity === 'coffee' ? '☕' : m.office_activity === 'phone' ? '📞' : m.office_activity === 'gaming' ? '🎮' : m.office_activity === 'query' ? '💬' : (ROLE_EMOJI[m.role] || '🤖')}
             <span class="status-dot ${monitorStatusClass(m)}"></span>
           </div>
           <div>
@@ -370,7 +435,9 @@ async function init() {
   } else {
     document.getElementById('demo-badge').classList.remove('hidden');
   }
-  await loadDashboard();
+  const initialView = parseViewFromLocation();
+  history.replaceState({ view: initialView }, '', viewUrl(initialView));
+  await showView(initialView, { push: false });
   startLeadsPolling();
   refreshLiveLeads();
 }

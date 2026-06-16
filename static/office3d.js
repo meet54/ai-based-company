@@ -4,6 +4,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import {
+  getLocalTimePeriod,
+  getTimeOfDayTheme,
+  applyTimePeriodClasses,
+} from '/static/office-time.js';
 
 const FLOOR_W = 24;
 const FLOOR_D = 18;
@@ -33,12 +38,10 @@ export class Office3DScene {
     const h = Math.max(mountEl.clientHeight, parent?.clientHeight || 0, 420);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0a0e14);
-    this.scene.fog = new THREE.Fog(0x0a0e14, 28, 55);
 
     const aspect = Math.max(w / h, 0.5);
     this.camera = new THREE.PerspectiveCamera(42, aspect, 0.1, 120);
-    this.camera.position.set(12, 16, 22);
+    this.camera.position.set(12, 21, 20);
     this.camera.lookAt(OFFICE_CENTER);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -48,19 +51,23 @@ export class Office3DScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mountEl.appendChild(this.renderer.domElement);
     this.renderer.domElement.className = 'office-3d-canvas';
+    this.renderer.domElement.style.touchAction = 'none';
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.copy(OFFICE_CENTER);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.enablePan = true;
-    this.controls.panSpeed = 0.7;
-    this.controls.rotateSpeed = 0.55;
-    this.controls.zoomSpeed = 1.1;
-    this.controls.minDistance = 7;
-    this.controls.maxDistance = 42;
-    this.controls.maxPolarAngle = Math.PI / 2.15;
-    this.controls.minPolarAngle = 0.2;
+    this.controls.enableZoom = true;
+    this.controls.enableRotate = true;
+    this.controls.panSpeed = 0.85;
+    this.controls.rotateSpeed = 0.6;
+    this.controls.zoomSpeed = 1.15;
+    this.controls.minDistance = 6;
+    this.controls.maxDistance = 48;
+    this.controls.maxPolarAngle = Math.PI / 2.05;
+    this.controls.minPolarAngle = 0.15;
+    this.controls.screenSpacePanning = true;
     this.controls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
@@ -82,11 +89,11 @@ export class Office3DScene {
     this._raycaster = new THREE.Raycaster();
     this._pointer = new THREE.Vector2();
     this._povLooks = {
-      console: new THREE.Vector3(10.5, 1.25, 9.7),
-      chess: new THREE.Vector3(2.8, 0.72, 10.5),
-      pool: new THREE.Vector3(4.5, 0.88, 15.2),
-      pingpong: new THREE.Vector3(7.5, 0.88, 13.5),
-      coffee: new THREE.Vector3(18.5, 1.05, 3.2),
+      console: new THREE.Vector3(2.2, 1.25, 2.2),
+      chess: new THREE.Vector3(2.2, 1.25, 2.2),
+      pool: new THREE.Vector3(2.2, 1.25, 2.2),
+      pingpong: new THREE.Vector3(2.2, 1.25, 2.2),
+      coffee: new THREE.Vector3(20, 1.05, 3.5),
     };
 
     this.controls.addEventListener('start', () => {
@@ -101,9 +108,21 @@ export class Office3DScene {
     this.labelRenderer = new CSS2DRenderer();
     this.labelRenderer.setSize(w, h);
     this.labelRenderer.domElement.className = 'office-3d-labels';
+    this.labelRenderer.domElement.style.pointerEvents = 'none';
     mountEl.appendChild(this.labelRenderer.domElement);
 
+    this._wheelHandler = (e) => {
+      e.preventDefault();
+      if (this._followId && !this._justFocusedPov) {
+        this.clearCharacterPov();
+        this.onPovExit?.();
+      }
+    };
+    this.renderer.domElement.addEventListener('wheel', this._wheelHandler, { passive: false });
+    mountEl.addEventListener('wheel', this._wheelHandler, { passive: false });
+
     this._lights();
+    this.applyTimeOfDay();
     this._buildFloor();
     this._buildRooms();
     this._bindResize();
@@ -117,19 +136,65 @@ export class Office3DScene {
   }
 
   _lights() {
-    this.scene.add(new THREE.AmbientLight(0x8aa4c8, 0.45));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.85);
-    sun.position.set(10, 22, 8);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -20;
-    sun.shadow.camera.right = 20;
-    sun.shadow.camera.top = 20;
-    sun.shadow.camera.bottom = -20;
-    this.scene.add(sun);
-    const fill = new THREE.PointLight(0x4fd1c5, 0.35, 40);
-    fill.position.set(4, 8, 14);
-    this.scene.add(fill);
+    this._ambient = new THREE.AmbientLight(0x8aa4c8, 0.45);
+    this.scene.add(this._ambient);
+
+    this._sun = new THREE.DirectionalLight(0xffffff, 0.85);
+    this._sun.position.set(10, 22, 8);
+    this._sun.castShadow = true;
+    this._sun.shadow.mapSize.set(2048, 2048);
+    this._sun.shadow.camera.left = -20;
+    this._sun.shadow.camera.right = 20;
+    this._sun.shadow.camera.top = 20;
+    this._sun.shadow.camera.bottom = -20;
+    this.scene.add(this._sun);
+
+    this._fill = new THREE.PointLight(0x4fd1c5, 0.35, 40);
+    this._fill.position.set(4, 8, 14);
+    this.scene.add(this._fill);
+
+    this._hemi = new THREE.HemisphereLight(0x87ceeb, 0x0a0e14, 0.35);
+    this.scene.add(this._hemi);
+
+    this._timePeriod = null;
+    this._timeCheckAccum = 0;
+    this._interiorBoost = 1;
+  }
+
+  applyTimeOfDay(period) {
+    period = period || getLocalTimePeriod();
+    if (period === this._timePeriod) return period;
+    this._timePeriod = period;
+    const theme = getTimeOfDayTheme(period);
+
+    this.scene.background = new THREE.Color(theme.background);
+    if (!this.scene.fog) {
+      this.scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
+    } else {
+      this.scene.fog.color.setHex(theme.fog);
+      this.scene.fog.near = theme.fogNear;
+      this.scene.fog.far = theme.fogFar;
+    }
+
+    this._ambient.color.setHex(theme.ambient.color);
+    this._ambient.intensity = theme.ambient.intensity;
+    this._sun.color.setHex(theme.sun.color);
+    this._sun.intensity = theme.sun.intensity;
+    this._sun.position.set(theme.sun.x, theme.sun.y, theme.sun.z);
+    this._fill.color.setHex(theme.fill.color);
+    this._fill.intensity = theme.fill.intensity;
+    this._fill.position.set(theme.fill.x, theme.fill.y, theme.fill.z);
+    this._hemi.color.setHex(theme.hemisphere.sky);
+    this._hemi.groundColor.setHex(theme.hemisphere.ground);
+    this._hemi.intensity = theme.hemisphere.intensity;
+    this._interiorBoost = theme.interiorBoost;
+
+    const floorEl = this.mount?.closest('.office-floor');
+    applyTimePeriodClasses(floorEl, period);
+    const wrapEl = this.mount?.closest('.office-wrap');
+    applyTimePeriodClasses(wrapEl, period);
+    this.onTimeOfDayChange?.(period, theme);
+    return period;
   }
 
   _mat(color, emissive = 0x000000, metalness = 0.08, roughness = 0.82) {
@@ -260,33 +325,73 @@ export class Office3DScene {
   }
 
   _buildRooms() {
-    // Dev floor (desks) — left
-    this._roomWalls(0.3, 0.3, 13.2, 10.5, 0x243044, 0x1a2436);
-    this._roomLabel('💻 Dev Floor', 6.5, 1.2);
+    // Gaming room — top left
+    this._roomWalls(0.3, 0.3, 4.2, 5.2, 0x1a3d28, 0x0f2818);
+    this._roomLabel('🎮 Gaming Room', 2.4, 2.8);
+    this._gamingStation(2.2, 2.5);
+    this._addGlowLight(2.2, 1.5, 2.5, 0x22c55e, 0.25);
+
+    // Meeting room — left middle
+    this._roomWalls(0.3, 5.8, 4.2, 5.5, 0x3d2e1e, 0x2a2018);
+    this._roomLabel('🤝 Meeting Room', 2.4, 8.5);
+    this._meetingTable(2.4, 8.5);
+
+    // Main entrance — bottom left
+    this._roomWalls(0.3, 11.6, 4.2, 6.2, 0x243044, 0x1a2436);
+    this._roomLabel('🚪 Main Entrance', 2.4, 14.5);
+    this._entranceDoors(2.4, 14.2);
+
+    // Dev floor — center (desks via buildDesks)
+    this._roomWalls(4.8, 0.3, 12.2, 17.2, 0x243044, 0x1a2436);
+    this._roomLabel('💻 Dev Floor', 10.8, 1.5);
 
     // Coffee break room — top right
-    this._roomWalls(13.8, 0.3, 9.8, 7.5, 0x3d2e1e, 0x2a2018);
-    this._roomLabel('☕ Coffee Break Room', 18.5, 1.2);
-    this._coffeeBar(15.2, 2.2);
-    this._coffeeBar(19.8, 4.8);
-    this._coffeeSeating(17, 6.2);
+    this._roomWalls(17.3, 0.3, 6.5, 8.8, 0x3d2e1e, 0x2a2018);
+    this._roomLabel('☕ Coffee Break Room', 20.5, 1.5);
+    this._coffeeBar(19, 2.5);
+    this._coffeeSeating(18.5, 5.5);
+    this._coffeeSeating(21.5, 5.5);
+    this._coffeeSeating(18.5, 7.5);
+    this._coffeeSeating(21.5, 7.5);
 
-    // Phone / call room — bottom right
-    this._roomWalls(13.8, 8.2, 9.8, 9.2, 0x1e2a3d, 0x151f2e);
-    this._roomLabel('📞 Call Room', 18.5, 9.2);
-    this._callBooth(15, 9.8);
-    this._callBooth(18.2, 12.2);
-    this._callBooth(21, 10.2);
-    this._callBooth(17, 14.8);
+    // Call booths — bottom right
+    this._roomWalls(17.3, 9.4, 6.5, 8.1, 0x1e2a3d, 0x151f2e);
+    this._roomLabel('📞 Call Booths', 20.5, 10.5);
+    this._callBooth(19.2, 12);
+    this._callBooth(21.8, 14.5);
+  }
 
-    // Chill / games room — bottom left
-    this._roomWalls(0.3, 8.2, 13.2, 9.2, 0x2a1e3d, 0x1e1528);
-    this._roomLabel('🎮 Chill & Games Room', 6.5, 9.2);
-    this._chessTable(2.8, 10.5);
-    this._pingPongTable(7.5, 13.5);
-    this._gamingStation(10.5, 9.8);
-    this._poolTable(4.5, 15.2);
-    this._sofa(11.5, 11.8);
+  _meetingTable(x, z) {
+    const wood = this._mat(0x5c4033);
+    const top = this._mesh(new THREE.BoxGeometry(2.8, 0.1, 1.2), wood);
+    top.position.set(x, 0.62, z);
+    const chair = (dx, dz) => {
+      const seat = this._mesh(new THREE.BoxGeometry(0.32, 0.06, 0.32), this._mat(0x1e293b));
+      seat.position.set(x + dx, 0.38, z + dz);
+      const back = this._mesh(new THREE.BoxGeometry(0.32, 0.38, 0.06), this._mat(0x1e293b));
+      back.position.set(x + dx, 0.58, z + dz - 0.16);
+      return [seat, back];
+    };
+    this._group(
+      top,
+      ...chair(-1.4, 0),
+      ...chair(1.4, 0),
+      ...chair(0, -0.7),
+      ...chair(0, 0.7),
+      ...chair(-0.9, -0.55),
+      ...chair(0.9, 0.55),
+    );
+  }
+
+  _entranceDoors(x, z) {
+    const frame = this._mat(0x475569);
+    const doorL = this._mesh(new THREE.BoxGeometry(0.9, 1.6, 0.08), frame);
+    doorL.position.set(x - 0.5, 0.8, z);
+    const doorR = this._mesh(new THREE.BoxGeometry(0.9, 1.6, 0.08), frame);
+    doorR.position.set(x + 0.5, 0.8, z);
+    const mat = this._mesh(new THREE.BoxGeometry(2.2, 0.08, 1.4), this._mat(0x1e293b));
+    mat.position.set(x, 0.04, z + 0.4);
+    this._group(doorL, doorR, mat);
   }
 
   _coffeeBar(x, z) {
@@ -861,7 +966,7 @@ export class Office3DScene {
       } else if (p.type === 'laptop') {
         const workBoost = this._nearbyCharacterBoost(p.x, p.z, ['working', 'idle'], 1.8);
         const flicker = 0.85 + Math.sin(t * 12 + p.phase) * 0.08 + Math.sin(t * 3.7) * 0.05;
-        const intensity = (0.35 + workBoost * 0.65) * flicker;
+        const intensity = (0.35 + workBoost * 0.65) * flicker * (this._interiorBoost || 1);
 
         p.mesh.material.emissive.setRGB(0.1 * intensity, 0.25 * intensity, 0.85 * intensity);
         p.mesh.material.emissiveIntensity = intensity;
@@ -872,7 +977,7 @@ export class Office3DScene {
       } else if (p.type === 'screen') {
         const gameBoost = this._nearbyCharacterBoost(p.x, p.z, ['gaming'], 3.2);
         const flicker = 0.8 + Math.sin(t * 6 + p.phase) * 0.12;
-        const intensity = (0.4 + gameBoost * 0.8) * flicker;
+        const intensity = (0.4 + gameBoost * 0.8) * flicker * (this._interiorBoost || 1);
 
         p.mesh.material.emissive.setRGB(0.15 * intensity, 0.2 * intensity, 0.95 * intensity);
         p.mesh.material.emissiveIntensity = intensity;
@@ -887,7 +992,7 @@ export class Office3DScene {
   _bindCameraUI(mountEl) {
     const hint = document.createElement('div');
     hint.className = 'office-3d-camera-hint';
-    hint.innerHTML = '🖱️ Drag to rotate · Scroll to zoom · Click member for POV';
+    hint.innerHTML = '🖱️ Left-drag rotate · Right-drag pan · Scroll zoom · Click member for POV';
     mountEl.appendChild(hint);
 
     const povBanner = document.createElement('div');
@@ -929,6 +1034,12 @@ export class Office3DScene {
       }
     }
 
+    this._timeCheckAccum += dt;
+    if (this._timeCheckAccum >= 30) {
+      this._timeCheckAccum = 0;
+      this.applyTimeOfDay();
+    }
+
     this._animateProps(dt);
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
@@ -948,10 +1059,22 @@ export class Office3DScene {
   _bindResize() {
     this._onResize = this._onResize.bind(this);
     window.addEventListener('resize', this._onResize);
+    if (typeof ResizeObserver !== 'undefined') {
+      this._resizeObserver = new ResizeObserver(() => this._onResize());
+      this._resizeObserver.observe(this.mount);
+      if (this.mount.parentElement) {
+        this._resizeObserver.observe(this.mount.parentElement);
+      }
+    }
   }
 
   dispose() {
     window.removeEventListener('resize', this._onResize);
+    this._resizeObserver?.disconnect();
+    if (this._wheelHandler) {
+      this.renderer.domElement.removeEventListener('wheel', this._wheelHandler);
+      this.mount?.removeEventListener('wheel', this._wheelHandler);
+    }
     if (this._pointerDownHandler) {
       this.renderer.domElement.removeEventListener('pointerdown', this._pointerDownHandler);
     }

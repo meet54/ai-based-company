@@ -4,6 +4,7 @@ from typing import Optional
 from src.agents.team import TEAM_ROSTER
 from src.database.state_store import team_live_store
 from src.models.schemas import Project
+from src.services.office_hours import closed_status_message, is_office_open
 from src.services.office_state import office_state
 
 INHOUSE_PROJECT_TITLE = "Walkgether (In-House)"
@@ -117,7 +118,39 @@ class TeamMonitor:
     def get_agent_status(self, agent_name: str) -> Optional[dict]:
         return team_live_store.get(agent_name)
 
+    def _build_closed_roster(self) -> list[dict]:
+        live_by_name = team_live_store.load_all()
+        message = closed_status_message()
+        roster = []
+        for member in TEAM_ROSTER:
+            live = live_by_name.get(member.name, {})
+            roster.append({
+                "id": member.id,
+                "name": member.name,
+                "role": member.role.value,
+                "department": member.department,
+                "skills": member.skills,
+                "status": "away",
+                "current_task": "Logged out",
+                "work_details": message,
+                "project_id": None,
+                "project_title": None,
+                "inhouse": False,
+                "last_active": live.get("updated_at"),
+                "stage": None,
+                "office_zone": "away",
+                "office_activity": "offline",
+                "office_game": None,
+                "conversation_partner": None,
+                "office_query": None,
+                "office_answer": None,
+            })
+        return roster
+
     def build_live_roster(self, activity_by_agent: dict[str, dict]) -> list[dict]:
+        if not is_office_open():
+            return self._build_closed_roster(), 0
+
         live_by_name = team_live_store.load_all()
         roster = []
         working_count = 0
