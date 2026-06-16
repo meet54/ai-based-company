@@ -126,7 +126,7 @@
         <header class="page-header">
           <div>
             <h2>🏢 Live Office</h2>
-            <p>Virtual office — see what each person is doing right now. Everyone works 8 hours per day on a flexible schedule.</p>
+            <p>Virtual office in 3D — dev floor, coffee break room, call room, and chill/games room. Office hours 10:00 AM – 7:00 PM.</p>
           </div>
           <div class="monitor-status">
             <span class="live-dot"></span>
@@ -225,6 +225,14 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
   <script src="/static/office.js"></script>
   <script src="/static/app.js"></script>
 </body>

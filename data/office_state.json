@@ -1,0 +1,111 @@
+{
+  "agents": {
+    "Alex": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T09:09:04.717816"
+    },
+    "Priya Sharma": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T10:16:42.147748"
+    },
+    "Alex Rivera": {
+      "zone": "coffee_room",
+      "activity": {
+        "type": "coffee_break",
+        "until": "2026-06-16T10:19:38.698468"
+      },
+      "updated_at": "2026-06-16T10:17:08.698468"
+    },
+    "Sam Okafor": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T10:17:45.831225"
+    },
+    "Marcus Johnson": {
+      "zone": "lounge",
+      "activity": {
+        "type": "query",
+        "role": "asker",
+        "partner": "Elena Vasquez",
+        "query": "What's blocking the profile API work this sprint?",
+        "answer": "Yes, we covered that in the last sprint. I'll share the doc in Slack.",
+        "until": "2026-06-16T10:18:17.834892"
+      },
+      "updated_at": "2026-06-16T10:16:17.834892"
+    },
+    "Aisha Khan": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T10:17:39.186680"
+    },
+    "Taylor Wright": {
+      "zone": "lounge",
+      "activity": {
+        "type": "query",
+        "role": "asker",
+        "partner": "Sam Okafor",
+        "query": "Who owns the push notifications integration on your side?",
+        "answer": "I'd recommend we keep it simple for MVP and iterate on push notifications next sprint.",
+        "until": "2026-06-16T10:19:39.187678"
+      },
+      "updated_at": "2026-06-16T10:17:39.187678"
+    },
+    "David Kim": {
+      "zone": "coffee_room",
+      "activity": {
+        "type": "coffee_break",
+        "until": "2026-06-16T10:19:28.515285"
+      },
+      "updated_at": "2026-06-16T10:16:58.515285"
+    },
+    "Jordan Lee": {
+      "zone": "chill_room",
+      "activity": {
+        "type": "gaming",
+        "game": "FIFA",
+        "until": "2026-06-16T10:21:09.553892"
+      },
+      "updated_at": "2026-06-16T10:17:49.553892"
+    },
+    "Elena Vasquez": {
+      "zone": "lounge",
+      "activity": {
+        "type": "query",
+        "role": "responder",
+        "partner": "Marcus Johnson",
+        "query": "What's blocking the profile API work this sprint?",
+        "answer": "Yes, we covered that in the last sprint. I'll share the doc in Slack.",
+        "until": "2026-06-16T10:18:17.834892"
+      },
+      "updated_at": "2026-06-16T10:16:17.834892"
+    },
+    "Morgan Chen": {
+      "zone": "phone_room",
+      "activity": {
+        "type": "phone_call",
+        "partner": "sales prospect",
+        "until": "2026-06-16T10:19:28.164681"
+      },
+      "updated_at": "2026-06-16T10:16:28.164681"
+    },
+    "Nina Brooks": {
+      "zone": "coffee_room",
+      "activity": {
+        "type": "coffee_break",
+        "until": "2026-06-16T10:19:18.336920"
+      },
+      "updated_at": "2026-06-16T10:16:48.336920"
+    },
+    "Chris Taylor": {
+      "zone": "coffee_room",
+      "activity": {
+        "type": "coffee_break",
+        "until": "2026-06-16T10:19:48.880064"
+      },
+      "updated_at": "2026-06-16T10:17:18.880064"
+    },
+    "Riya Patel": {
+      "zone": "desk",
+      "updated_at": "2026-06-16T10:17:49.553892"
+    }
+  },
+  "updated_at": "2026-06-16T10:17:49.553892"
+}

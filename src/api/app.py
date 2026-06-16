@@ -33,6 +33,7 @@ from src.services.code_generator import code_generator
 from src.services.idle_worker import idle_worker
 from src.services.lead_scout import lead_scout
 from src.services.lead_scout_worker import lead_scout_worker
+from src.services.office_social_worker import office_social_worker
 from src.services.team_monitor import team_monitor
 from src.services.walkgether import walkgether
 from src.walkgether.repository import walkgether_db
@@ -63,17 +64,24 @@ async def lifespan(app: FastAPI):
     walkgether.init()
     worker = asyncio.create_task(idle_worker.start())
     lead_worker = asyncio.create_task(lead_scout_worker.start())
+    social_worker = asyncio.create_task(office_social_worker.start())
     yield
     idle_worker.stop()
     lead_scout_worker.stop()
+    office_social_worker.stop()
     worker.cancel()
     lead_worker.cancel()
+    social_worker.cancel()
     try:
         await worker
     except asyncio.CancelledError:
         pass
     try:
         await lead_worker
+    except asyncio.CancelledError:
+        pass
+    try:
+        await social_worker
     except asyncio.CancelledError:
         pass
 

@@ -238,39 +238,90 @@ async function loadLiveOffice() {
         `${data.working_count} working · ${data.idle_count} idle · ${data.active_projects} client projects` +
         (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '') + phaseNote;
     }
-    OfficeSimulator.sync(data.members);
+    await OfficeSimulator.sync(data.members);
   };
 
   await render();
-  monitorInterval = setInterval(render, 4000);
+  monitorInterval = setInterval(render, 2500);
 }
 
 async function loadTeamMonitor() {
+  const monitorCardClass = (m) => {
+    if (m.status === 'working') return 'working';
+    if (m.office_activity === 'coffee') return 'coffee';
+    if (m.office_activity === 'phone') return 'phone';
+    if (m.office_activity === 'gaming') return 'gaming';
+    if (m.office_activity === 'query') return 'query';
+    return 'idle';
+  };
+
+  const monitorTaskPrefix = (m) => {
+    if (m.status === 'working') return '🟢 ';
+    if (m.office_activity === 'coffee') return '☕ ';
+    if (m.office_activity === 'phone') return '📞 ';
+    if (m.office_activity === 'gaming') return '🎮 ';
+    if (m.office_activity === 'query') return '💬 ';
+    return '⚪ ';
+  };
+
+  const monitorStatusClass = (m) => {
+    if (m.status === 'working') return 'working';
+    if (m.office_activity === 'coffee') return 'coffee';
+    if (m.office_activity === 'phone') return 'phone';
+    if (m.office_activity === 'gaming') return 'gaming';
+    if (m.office_activity === 'query') return 'query';
+    return m.status;
+  };
+
+  const monitorStatusLabel = (m) => {
+    if (m.status === 'working') return 'Currently Working';
+    if (m.office_activity === 'coffee') return 'Coffee Break';
+    if (m.office_activity === 'phone') return 'On a Call';
+    if (m.office_activity === 'gaming') return 'Games Room';
+    if (m.office_activity === 'query') return 'Team Q&A';
+    return 'Last Activity';
+  };
+
   const render = async () => {
     const data = await api('/team/live');
     const wg = data.inhouse_project;
+    const coffeeCount = data.members.filter(m => m.office_activity === 'coffee').length;
+    const phoneCount = data.members.filter(m => m.office_activity === 'phone').length;
+    const gameCount = data.members.filter(m => m.office_activity === 'gaming').length;
+    const queryCount = data.members.filter(m => m.office_activity === 'query').length;
+    const socialParts = [];
+    if (coffeeCount) socialParts.push(`☕ ${coffeeCount} coffee`);
+    if (phoneCount) socialParts.push(`📞 ${phoneCount} on call`);
+    if (gameCount) socialParts.push(`🎮 ${gameCount} gaming`);
+    if (queryCount) socialParts.push(`💬 ${queryCount} Q&A`);
+    const socialNote = socialParts.length ? ` · ${socialParts.join(' · ')}` : '';
+
     document.getElementById('monitor-stats').textContent =
       `${data.working_count} working · ${data.idle_count} idle · ${data.active_projects} client projects` +
-      (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '');
+      (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '') + socialNote;
 
     document.getElementById('team-monitor-grid').innerHTML = data.members.map(m => `
-      <div class="monitor-card ${m.status} ${m.inhouse ? 'inhouse' : ''}">
+      <div class="monitor-card ${monitorCardClass(m)} ${m.inhouse ? 'inhouse' : ''}">
         <div class="monitor-top">
           <div class="monitor-avatar">
-            ${ROLE_EMOJI[m.role] || '🤖'}
-            <span class="status-dot ${m.status}"></span>
+            ${m.office_activity === 'coffee' ? '☕' : m.office_activity === 'phone' ? '📞' : m.office_activity === 'gaming' ? '🎮' : m.office_activity === 'query' ? '💬' : (ROLE_EMOJI[m.role] || '🤖')}
+            <span class="status-dot ${monitorStatusClass(m)}"></span>
           </div>
           <div>
             <div class="monitor-name">${escapeHtml(m.name)}</div>
             <div class="monitor-role">${m.department}</div>
           </div>
         </div>
-        <div class="monitor-task">${m.status === 'working' ? '🟢 ' : '⚪ '}${escapeHtml(m.current_task)}</div>
+        <div class="monitor-task">${monitorTaskPrefix(m)}${escapeHtml(m.current_task)}</div>
+        ${m.conversation_partner ? `<div class="monitor-partner">with ${escapeHtml(m.conversation_partner)}</div>` : ''}
         ${m.project_title ? `<div class="monitor-project ${m.inhouse ? 'inhouse-project' : ''}">📁 ${escapeHtml(m.project_title)}</div>` : ''}
         <div class="monitor-tooltip">
-          <h5>${escapeHtml(m.name)} — ${m.status === 'working' ? 'Currently Working' : 'Last Activity'}</h5>
+          <h5>${escapeHtml(m.name)} — ${monitorStatusLabel(m)}</h5>
           <p><strong>Role:</strong> ${m.role.replace(/_/g, ' ')}</p>
           <p><strong>Task:</strong> ${escapeHtml(m.current_task)}</p>
+          ${m.conversation_partner ? `<p><strong>With:</strong> ${escapeHtml(m.conversation_partner)}</p>` : ''}
+          ${m.office_query ? `<p><strong>Question:</strong> ${escapeHtml(m.office_query)}</p>` : ''}
+          ${m.office_answer && m.office_activity === 'query' ? `<p><strong>Answer:</strong> ${escapeHtml(m.office_answer)}</p>` : ''}
           ${m.project_title ? `<p><strong>Project:</strong> ${escapeHtml(m.project_title)}</p>` : ''}
           ${m.stage ? `<p><strong>Stage:</strong> ${formatStage(m.stage)}</p>` : ''}
           <div class="tooltip-detail">${escapeHtml(m.work_details)}</div>
@@ -290,7 +341,7 @@ async function loadTeamMonitor() {
   };
 
   await render();
-  monitorInterval = setInterval(render, 4000);
+  monitorInterval = setInterval(render, 2500);
 }
 
 async function logout() {

@@ -1,19 +1,18 @@
 """In-house Walkgether project — requirements, progress, and deliverables."""
 
-import json
 from datetime import datetime
 from pathlib import Path
 
 from src.config import settings
+from src.database.state_store import app_state_store
 from src.models.schemas import AgentRole, Project, ProjectStage, ProjectStatus
 from src.services.walkgether_site import build_walkgether_site
 from src.services.walkgether_app import build_walkgether_app_files
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 REQUIREMENTS_FILE = ROOT / "walkgether.txt"
-STATE_FILE = ROOT / "data" / "walkgether_state.json"
 DELIVERABLES_DIR = ROOT / "deliverables" / "inhouse" / "walkgether"
-
+WALKGETHER_STATE_KEY = "walkgether"
 INHOUSE_ID = "walkgether"
 INHOUSE_TITLE = "Walkgether"
 INHOUSE_LABEL = "Walkgether (In-House)"
@@ -260,7 +259,6 @@ class WalkgetherService:
         self._requirements: str = ""
 
     def init(self) -> None:
-        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         self._requirements = self._load_requirements()
         self._state = self._load_state()
         self._ensure_phase()
@@ -280,12 +278,7 @@ class WalkgetherService:
             return REQUIREMENTS_FILE.read_text(encoding="utf-8")
         return "Walkgether — social fitness walking platform."
 
-    def _load_state(self) -> dict:
-        if STATE_FILE.is_file():
-            try:
-                return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                pass
+    def _default_state(self) -> dict:
         return {
             "completed_tasks": [],
             "task_cycle": 0,
@@ -297,8 +290,14 @@ class WalkgetherService:
             "last_activity": None,
         }
 
+    def _load_state(self) -> dict:
+        stored = app_state_store.get(WALKGETHER_STATE_KEY)
+        if stored:
+            return stored
+        return self._default_state()
+
     def _save_state(self) -> None:
-        STATE_FILE.write_text(json.dumps(self._state, indent=2), encoding="utf-8")
+        app_state_store.set(WALKGETHER_STATE_KEY, self._state)
 
     def _ensure_deliverables(self) -> None:
         if not self._state.get("files_built"):

@@ -1,23 +1,74 @@
 /**
- * Virtual office — 8 hours/day per member, no fixed schedule; shows live activity.
+ * Virtual office — 10:00 AM–7:00 PM with staggered arrival and departure.
  */
 const OfficeSimulator = (() => {
-  const DAILY_HOURS = 8 * 60;           // 8-hour quota in minutes
+  const DAILY_HOURS = 8 * 60;
   const DAILY_HOURS_MS = DAILY_HOURS * 60000;
-  const OFFICE_HOURS_LABEL = '8 hours per day';
+
+  const OFFICE_OPEN = 10 * 60;
+  const OFFICE_CLOSE = 19 * 60;
+  const ENTRY_WINDOW_START = 9 * 60 + 55;
+  const ENTRY_WINDOW_END = 10 * 60 + 15;
+  const EXIT_WINDOW_START = 18 * 60 + 50;
+  const EXIT_WINDOW_END = 19 * 60 + 30;
+  const OFFICE_HOURS_LABEL = '10:00 AM – 7:00 PM';
 
   const POIS = {
-    entrance: { x: 6, y: 92 },
-    coffee: { x: 90, y: 14 },
-    lounge: { x: 52, y: 78 },
-    hallway: { x: 30, y: 55 },
+    entrance: { x: 8, y: 92 },
+    coffee: { x: 88, y: 12 },
+    lounge: { x: 50, y: 88 },
+    hallway: { x: 50, y: 52 },
   };
 
-  const DESKS = [
-    { x: 10, y: 22 }, { x: 24, y: 22 }, { x: 38, y: 22 }, { x: 52, y: 22 }, { x: 66, y: 22 },
-    { x: 10, y: 42 }, { x: 24, y: 42 }, { x: 38, y: 42 }, { x: 52, y: 42 }, { x: 66, y: 42 },
-    { x: 18, y: 62 }, { x: 38, y: 62 }, { x: 58, y: 62 },
+  const DESKS = buildDeskGrid();
+
+  const COFFEE_SLOTS = [
+    { x: 62, y: 10 }, { x: 72, y: 14 }, { x: 82, y: 10 }, { x: 68, y: 22 }, { x: 88, y: 18 },
   ];
+
+  const PHONE_SLOTS = [
+    { x: 62, y: 58 }, { x: 72, y: 64 }, { x: 82, y: 56 }, { x: 68, y: 72 }, { x: 88, y: 68 },
+  ];
+
+  const CHILL_SLOTS = [
+    { x: 12, y: 58 }, { x: 24, y: 64 }, { x: 36, y: 58 }, { x: 48, y: 66 }, { x: 20, y: 74 },
+    { x: 32, y: 80 }, { x: 44, y: 76 },
+  ];
+
+  const LOUNGE_SLOTS = [
+    { x: 22, y: 30 }, { x: 34, y: 32 }, { x: 46, y: 30 }, { x: 28, y: 38 }, { x: 40, y: 38 },
+  ];
+
+  const HALLWAY_SLOTS = [
+    { x: 22, y: 52 }, { x: 36, y: 50 }, { x: 50, y: 54 }, { x: 64, y: 50 }, { x: 78, y: 52 },
+  ];
+
+  function buildDeskGrid() {
+    // Dev floor only — top-left quadrant (x ~8–52%, y ~10–38%)
+    const rows = [
+      { y: 12, xs: [10, 22, 34, 46] },
+      { y: 24, xs: [10, 22, 34, 46, 50] },
+      { y: 36, xs: [16, 28, 40, 52] },
+    ];
+    const desks = [];
+    rows.forEach((row) => row.xs.forEach((x) => desks.push({ x, y: row.y })));
+    return desks;
+  }
+
+  function deskIndexFor(memberName) {
+    const sorted = [...members].sort((a, b) => a.name.localeCompare(b.name));
+    const index = sorted.findIndex((m) => m.name === memberName);
+    return index >= 0 ? index : 0;
+  }
+
+  function deskForMember(memberName) {
+    return DESKS[deskIndexFor(memberName) % DESKS.length];
+  }
+
+  function slotFor(agent, slots) {
+    const idx = (agent.deskIndex ?? 0) % slots.length;
+    return slots[idx];
+  }
 
   const ROLE_EMOJI_MAP = {
     sales: '💼', marketing: '📣', hr: '🧑‍💼', business_analyst: '📋',
@@ -38,6 +89,8 @@ const OfficeSimulator = (() => {
   let running = false;
   let liveFeed = [];
   const feedDedup = new Map();
+  let scene3d = null;
+  let scene3dReady = null;
 
   function minsNow() {
     const n = new Date();
@@ -62,43 +115,102 @@ const OfficeSimulator = (() => {
     return `${h}h ${m}m`;
   }
 
-  function assignReadyMin(memberName) {
+  function formatScheduleTime(totalMinutes) {
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  }
+
+  function todayAtMs(totalMinutes) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() + totalMinutes * 60000;
+  }
+
+  function formatWorkedTime(ms) {
+    const totalMin = Math.floor(ms / 60000);
+    if (totalMin <= 0) return '0m';
+    return formatDuration(totalMin);
+  }
+
+  function assignEntryMin(memberName) {
     const key = todayKey();
+    const windowMins = ENTRY_WINDOW_END - ENTRY_WINDOW_START;
     const sorted = [...members].sort((a, b) => a.name.localeCompare(b.name));
     const index = Math.max(0, sorted.findIndex(m => m.name === memberName));
     const total = sorted.length || 1;
-    const spread = total > 1 ? Math.floor((index / (total - 1)) * 180) : 90;
-    const jitter = hashStr(`${memberName}|${key}`) % 20;
-    return 8 * 60 + spread + jitter;
+    const slot = total > 1 ? Math.floor((index / (total - 1)) * windowMins) : Math.floor(windowMins / 2);
+    const jitter = hashStr(`${memberName}|entry|${key}`) % 3;
+    return ENTRY_WINDOW_START + slot + jitter;
+  }
+
+  function assignLeaveMin(memberName) {
+    const key = todayKey();
+    const windowMins = EXIT_WINDOW_END - EXIT_WINDOW_START;
+    const sorted = [...members].sort((a, b) => a.name.localeCompare(b.name));
+    const index = Math.max(0, sorted.findIndex(m => m.name === memberName));
+    const total = sorted.length || 1;
+    const slot = total > 1 ? Math.floor((index / (total - 1)) * windowMins) : Math.floor(windowMins / 2);
+    const jitter = hashStr(`${memberName}|exit|${key}`) % 4;
+    return EXIT_WINDOW_START + slot + jitter;
   }
 
   function workProgress(memberName) {
     const agent = agents.get(memberName);
-    if (!agent || !agent.shiftStart) {
-      return { loggedMin: 0, remainingMin: DAILY_HOURS, done: false, started: false, pct: 0 };
+    const nowMin = minsNow();
+    if (!agent || nowMin < agent.entryMin) {
+      return { loggedMin: 0, loggedMs: 0, remainingMin: DAILY_HOURS, done: false, started: false, pct: 0 };
     }
-    const elapsed = Math.min(Date.now() - agent.shiftStart, DAILY_HOURS_MS);
-    const loggedMin = Math.floor(elapsed / 60000);
+
+    const startMs = todayAtMs(agent.entryMin);
+    const endMs = Math.min(Date.now(), todayAtMs(agent.leaveMin));
+    const elapsedMs = Math.min(Math.max(0, endMs - startMs), DAILY_HOURS_MS);
+    const loggedMin = Math.floor(elapsedMs / 60000);
     const remainingMin = Math.max(0, DAILY_HOURS - loggedMin);
-    const done = elapsed >= DAILY_HOURS_MS;
+    const done = nowMin >= agent.leaveMin || elapsedMs >= DAILY_HOURS_MS;
+    const started = nowMin >= agent.entryMin && nowMin < agent.leaveMin;
+
     return {
       loggedMin,
+      loggedMs: elapsedMs,
       remainingMin,
       done,
-      started: true,
-      pct: Math.min(100, Math.round((loggedMin / DAILY_HOURS) * 100)),
+      started,
+      pct: Math.min(100, Math.round((elapsedMs / DAILY_HOURS_MS) * 100)),
     };
   }
 
   function memberStatus(member, memberName) {
     const agent = agents.get(memberName);
-    const progress = workProgress(memberName);
-    if (progress.done) return { label: 'Done for today', present: false, key: 'done' };
-    if (!progress.started) {
-      const ready = agent && minsNow() >= agent.readyMin;
-      return ready
-        ? { label: 'Starting shift', present: true, key: 'starting' }
-        : { label: 'Off duty', present: false, key: 'off' };
+    const now = minsNow();
+    const entryMin = agent?.entryMin ?? ENTRY_WINDOW_START;
+    const leaveMin = agent?.leaveMin ?? EXIT_WINDOW_END;
+
+    if (now < entryMin) {
+      return { label: 'Off duty', present: false, key: 'off' };
+    }
+    if (now >= leaveMin) {
+      return { label: 'Left for today', present: false, key: 'done' };
+    }
+    if (now < ENTRY_WINDOW_END && now >= entryMin && agent && !agent.checkedInToday) {
+      return { label: 'Arriving', present: true, key: 'starting' };
+    }
+    if (now >= EXIT_WINDOW_START && now < leaveMin) {
+      return { label: 'Wrapping up', present: true, key: 'leaving' };
+    }
+    if (member.office_activity === 'coffee') {
+      return { label: 'Coffee break', present: true, key: 'coffee' };
+    }
+    if (member.office_activity === 'query') {
+      return { label: 'Team Q&A', present: true, key: 'query' };
+    }
+    if (member.office_activity === 'phone') {
+      return { label: 'On a call', present: true, key: 'phone' };
+    }
+    if (member.office_activity === 'gaming') {
+      return { label: 'Games room', present: true, key: 'gaming' };
     }
     if (member.status === 'working') {
       return { label: 'Working', present: true, key: 'working' };
@@ -111,34 +223,32 @@ const OfficeSimulator = (() => {
   }
 
   function ensureShiftStarted(agent) {
-    if (!agent || agent.shiftStart || agent.shiftEnded) return;
-    if (minsNow() < agent.readyMin) return;
-    agent.shiftStart = Date.now();
+    if (!agent || agent.shiftEnded) return;
+    if (minsNow() < agent.entryMin) return;
+    if (!agent.shiftStart) {
+      agent.shiftStart = todayAtMs(agent.entryMin);
+    }
+  }
+
+  function isOfficeOpenNow() {
+    const now = minsNow();
+    return now >= ENTRY_WINDOW_START && now < EXIT_WINDOW_END;
   }
 
   function officePhase() {
-    if (!members.length) return 'workday';
-    const anyPresent = members.some(m => shouldBePresent(m.name));
-    if (!anyPresent) return 'closed';
-    const anyStarting = members.some(m => {
-      const s = memberStatus(m, m.name);
-      return s.key === 'starting';
-    });
-    if (anyStarting) return 'login';
-    const anyFinishing = members.some(m => {
-      const p = workProgress(m.name);
-      return p.started && !p.done && p.remainingMin <= 15;
-    });
-    if (anyFinishing) return 'logout';
+    const now = minsNow();
+    if (now < ENTRY_WINDOW_START || now >= EXIT_WINDOW_END) return 'closed';
+    if (now < ENTRY_WINDOW_END) return 'login';
+    if (now >= EXIT_WINDOW_START) return 'logout';
     return 'workday';
   }
 
   function phaseLabel(phase) {
     const labels = {
-      closed: 'Office quiet — team on flexible 8-hour shifts',
-      login: 'Team starting their shifts',
+      closed: `Office closed — opens ${formatScheduleTime(OFFICE_OPEN)}`,
+      login: `Team arriving (${formatScheduleTime(ENTRY_WINDOW_START)} – ${formatScheduleTime(ENTRY_WINDOW_END)})`,
       workday: `Workday in progress — ${OFFICE_HOURS_LABEL}`,
-      logout: 'Team wrapping up daily 8-hour shifts',
+      logout: `Team leaving (${formatScheduleTime(EXIT_WINDOW_START)} – ${formatScheduleTime(EXIT_WINDOW_END)})`,
     };
     return labels[phase] || '';
   }
@@ -157,6 +267,36 @@ const OfficeSimulator = (() => {
   }
 
   function activitySummary(member) {
+    if (member.office_activity === 'coffee') {
+      return {
+        task: 'Coffee break',
+        detail: member.work_details || 'At the coffee bar',
+        working: false,
+      };
+    }
+    if (member.office_activity === 'query') {
+      return {
+        task: member.current_task || 'Team Q&A',
+        detail: member.work_details || (member.conversation_partner
+          ? `Talking with ${member.conversation_partner}`
+          : 'In the lounge'),
+        working: false,
+      };
+    }
+    if (member.office_activity === 'phone') {
+      return {
+        task: member.current_task || 'On a call',
+        detail: member.work_details || 'In the call room.',
+        working: false,
+      };
+    }
+    if (member.office_activity === 'gaming') {
+      return {
+        task: member.current_task || 'Games room',
+        detail: member.work_details || 'Chilling and playing games.',
+        working: false,
+      };
+    }
     const task = member.current_task || 'Standing by';
     const detail = clip(member.work_details, 120) || 'Ready for next assignment';
     const working = member.status === 'working';
@@ -259,8 +399,12 @@ const OfficeSimulator = (() => {
       const status = memberStatus(m, m.name);
       const progress = workProgress(m.name);
       const activity = activitySummary(m);
+      const agent = agents.get(m.name);
       const dotClass = status.present ? 'online' : 'offline';
       const statusClass = status.key === 'working' ? 'working' : status.key;
+      const scheduleNote = agent
+        ? `🕐 ${formatScheduleTime(agent.entryMin)} – ${formatScheduleTime(agent.leaveMin)}`
+        : '';
       return `
         <div class="office-roster-card ${m.status}${m.inhouse ? ' inhouse' : ''} ${status.present ? 'present' : 'absent'}">
           <div class="office-roster-top">
@@ -284,12 +428,13 @@ const OfficeSimulator = (() => {
           <div class="office-daily-progress">
             <div class="office-daily-progress-head">
               <span>Daily quota</span>
-              <span>${formatDuration(progress.loggedMin)} / 8h</span>
+              <span>${formatWorkedTime(progress.loggedMs)} / 8h</span>
             </div>
             <div class="office-daily-progress-bar">
               <div class="office-daily-progress-fill" style="width:${progress.pct}%"></div>
             </div>
-            <small class="office-daily-progress-note">${progress.done ? 'Shift complete' : `${formatDuration(progress.remainingMin)} remaining today`}</small>
+            <small class="office-daily-progress-note">${progress.done ? 'Shift complete' : progress.started ? `${formatWorkedTime(progress.loggedMs)} worked · ${formatDuration(progress.remainingMin)} left` : `Starts ${agent ? formatScheduleTime(agent.entryMin) : ''}`}</small>
+            ${scheduleNote ? `<small class="office-schedule-note">${scheduleNote}</small>` : ''}
           </div>
         </div>
       `;
@@ -298,7 +443,7 @@ const OfficeSimulator = (() => {
 
   function updateOfficeStatusIndicators() {
     const phase = officePhase();
-    const open = phase !== 'closed';
+    const open = isOfficeOpenNow();
 
     const pageDot = document.querySelector('#view-office .live-dot');
     if (pageDot) {
@@ -322,10 +467,90 @@ const OfficeSimulator = (() => {
     if (dateEl) dateEl.textContent = formatTodayDate();
   }
 
+  async function waitForLayout(el) {
+    for (let i = 0; i < 40; i++) {
+      const parent = el.parentElement;
+      const w = Math.max(el.clientWidth, parent?.clientWidth || 0);
+      const h = Math.max(el.clientHeight, parent?.clientHeight || 0);
+      if (w >= 40 && h >= 40) return;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+  }
+
+  function enable2DFallback() {
+    const fb = document.getElementById('office-2d-fallback');
+    if (fb) fb.classList.remove('hidden');
+    agentsEl = document.getElementById('office-agents');
+  }
+
+  function build2DFloorHtml() {
+    const deskHtml = DESKS.map((d) => `
+      <div class="office-desk" style="left:${d.x}%;top:${d.y}%">
+        <div class="desk-chair"></div>
+        <div class="desk-surface"></div>
+      </div>
+    `).join('');
+    return `
+      <div id="office-2d-fallback" class="office-2d-fallback">
+        <div class="office-zone office-zone-entrance">🚪 Entrance</div>
+        <div class="office-zone office-zone-coffee">☕ Coffee Room</div>
+        <div class="office-zone office-zone-phone">📞 Call Room</div>
+        <div class="office-zone office-zone-chill">🎮 Chill Room</div>
+        <div class="office-zone office-zone-dev">💻 Dev Floor</div>
+        <div class="office-floor-map">
+          ${deskHtml}
+          <div id="office-agents" class="office-agents"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function initScene3D(wrapEl) {
+    if (!wrapEl) {
+      enable2DFallback();
+      return null;
+    }
+    wrapEl.innerHTML = '<div class="office-3d-loading">Loading 3D office…</div>';
+    await waitForLayout(wrapEl);
+    try {
+      const mod = await import('/static/office3d.js');
+      wrapEl.innerHTML = '';
+      if (scene3d) scene3d.dispose();
+      scene3d = new mod.Office3DScene(wrapEl);
+      scene3d.buildDesks(DESKS);
+      document.getElementById('office-2d-fallback')?.classList.add('hidden');
+      return scene3d;
+    } catch (err) {
+      console.error('3D office failed:', err);
+      wrapEl.innerHTML = '';
+      enable2DFallback();
+      return null;
+    }
+  }
+
+  function hoursTextFor(agent, progress) {
+    const nowMin = minsNow();
+    if (progress.started) return `${formatWorkedTime(progress.loggedMs)} / 8h`;
+    if (nowMin < agent.entryMin) return `In ${formatScheduleTime(agent.entryMin)}`;
+    if (progress.done) return `Done · ${formatWorkedTime(progress.loggedMs)}`;
+    return `${formatScheduleTime(agent.entryMin)} – ${formatScheduleTime(agent.leaveMin)}`;
+  }
+
   function updateAgentPresence(agent, member) {
     const status = memberStatus(member, agent.id);
     const progress = workProgress(agent.id);
     const activity = activitySummary(member);
+    const hoursText = hoursTextFor(agent, progress);
+
+    if (scene3d) {
+      scene3d.upsertCharacter(agent.id, member);
+      scene3d.updateCharacter(agent.id, member, progress, activity, hoursText);
+      scene3d.setCharacterVisible(agent.id, status.present);
+      return;
+    }
+
+    if (!agent.el) return;
+
     const dot = agent.el.querySelector('.agent-presence-dot');
     if (dot) dot.className = `agent-presence-dot ${status.present ? 'online' : 'offline'}`;
     agent.el.classList.toggle('agent-present', status.present);
@@ -340,9 +565,21 @@ const OfficeSimulator = (() => {
     }
     const hoursEl = agent.el.querySelector('.agent-hours-tag');
     if (hoursEl) {
-      hoursEl.textContent = progress.started
-        ? `${formatDuration(progress.loggedMin)} / 8h`
-        : '8h shift';
+      const nowMin = minsNow();
+      if (progress.started) {
+        hoursEl.textContent = `${formatWorkedTime(progress.loggedMs)} / 8h`;
+        hoursEl.title = `${progress.pct}% of daily quota`;
+      } else if (nowMin < agent.entryMin) {
+        hoursEl.textContent = `In ${formatScheduleTime(agent.entryMin)}`;
+      } else if (progress.done) {
+        hoursEl.textContent = `Done · ${formatWorkedTime(progress.loggedMs)}`;
+      } else {
+        hoursEl.textContent = `${formatScheduleTime(agent.entryMin)} – ${formatScheduleTime(agent.leaveMin)}`;
+      }
+    }
+    const hoursFill = agent.el.querySelector('.agent-hours-fill');
+    if (hoursFill) {
+      hoursFill.style.width = `${progress.pct}%`;
     }
   }
 
@@ -365,22 +602,175 @@ const OfficeSimulator = (() => {
     agent.x = x;
     agent.y = y;
     agent.state = state;
+
+    const visualState = state === 'idle' ? 'idle' : state;
+    if (scene3d) {
+      const mapState = {
+        coffee: 'coffee',
+        talking: 'talking',
+        walking: 'walking',
+        working: 'working',
+        idle: 'idle',
+        phone: 'phone',
+        gaming: 'gaming',
+      };
+      scene3d.moveCharacter(agent.id, x, y, mapState[visualState] || visualState);
+      return;
+    }
+
     const el = agent.el;
     if (!el) return;
     el.style.left = `${x}%`;
     el.style.top = `${y}%`;
-    el.className = `office-agent state-${state}${agent.apiWorking ? ' api-working' : ''}`;
+    const seated = state === 'working' || state === 'idle';
+    const depthZ = Math.round(8 + (y / 100) * 32);
+    el.style.zIndex = String(10 + Math.round(y));
+    el.style.setProperty('--depth-z', `${depthZ}px`);
+    el.className = `office-agent state-${state}${agent.apiWorking ? ' api-working' : ''}${seated ? ' at-seat' : ''}`;
   }
 
-  function pickIdleActivity(agent, allPresent) {
-    const roll = Math.random();
-    if (roll < 0.3) return { type: 'coffee', target: POIS.coffee };
-    if (roll < 0.5) return { type: 'walk', target: POIS.hallway };
-    if (roll < 0.72 && allPresent.length >= 2) {
-      const buddy = allPresent.find(a => a.id !== agent.id && a.state !== 'talking');
-      if (buddy) return { type: 'talking', target: POIS.lounge, buddy: buddy.id };
+  function zonePosition(zone, agent, member) {
+    if (member.status === 'working' || zone === 'desk') {
+      const querying = member.office_activity === 'query';
+      return {
+        x: agent.desk.x,
+        y: agent.desk.y,
+        state: member.status === 'working' ? 'working' : (querying ? 'talking' : 'idle'),
+      };
     }
-    return { type: 'desk', target: agent.desk };
+    if (zone === 'coffee' || zone === 'coffee_room') {
+      const slot = slotFor(agent, COFFEE_SLOTS);
+      return { x: slot.x, y: slot.y, state: 'coffee' };
+    }
+    if (zone === 'phone_room') {
+      const slot = slotFor(agent, PHONE_SLOTS);
+      return { x: slot.x, y: slot.y, state: 'phone' };
+    }
+    if (zone === 'chill_room') {
+      const slot = slotFor(agent, CHILL_SLOTS);
+      return { x: slot.x, y: slot.y, state: 'gaming' };
+    }
+    if (zone === 'lounge') {
+      const slot = slotFor(agent, LOUNGE_SLOTS);
+      return { x: slot.x, y: slot.y, state: 'talking' };
+    }
+    if (zone === 'hallway') {
+      const slot = slotFor(agent, HALLWAY_SLOTS);
+      return { x: slot.x, y: slot.y, state: 'walking' };
+    }
+    if (zone === 'entrance') {
+      return { x: POIS.entrance.x, y: POIS.entrance.y, state: 'leaving' };
+    }
+    if (zone === 'away') {
+      return { x: POIS.entrance.x, y: POIS.entrance.y + 8, state: 'away' };
+    }
+    return { x: agent.desk.x, y: agent.desk.y, state: 'idle' };
+  }
+
+  function resolveOfficeZone(member) {
+    if (member.status === 'working') return 'desk';
+    switch (member.office_activity) {
+      case 'coffee':
+        return 'coffee_room';
+      case 'phone':
+        return 'phone_room';
+      case 'gaming':
+        return 'chill_room';
+      case 'query':
+        return 'desk';
+      default:
+        break;
+    }
+    const z = member.office_zone || 'desk';
+    if (z === 'coffee') return 'coffee_room';
+    if (['coffee_room', 'phone_room', 'chill_room', 'lounge', 'hallway'].includes(z)) {
+      return 'desk';
+    }
+    return z;
+  }
+
+  function feedForZone(zone, member) {
+    if (member.office_activity === 'coffee' || zone === 'coffee' || zone === 'coffee_room') {
+      const b = coffeeBubble(member);
+      return { type: 'coffee', message: b.detail };
+    }
+    if (member.office_activity === 'phone' || zone === 'phone_room') {
+      return {
+        type: 'talk',
+        message: member.current_task || 'On a call',
+        extra: member.conversation_partner || 'Call room',
+      };
+    }
+    if (member.office_activity === 'gaming' || zone === 'chill_room') {
+      return {
+        type: 'walk',
+        message: member.current_task || 'Playing games',
+        extra: 'Chill & games room',
+      };
+    }
+    if (member.office_activity === 'query' || zone === 'lounge' || zone === 'desk') {
+      if (member.office_query) {
+        return {
+          type: 'talk',
+          message: member.office_query,
+          extra: member.conversation_partner
+            ? `Asking ${member.conversation_partner}`
+            : 'Team Q&A at their desk',
+        };
+      }
+      return {
+        type: 'talk',
+        message: member.current_task || 'Chatting with a teammate',
+        extra: member.conversation_partner || member.project_title || 'work',
+      };
+    }
+    if (zone === 'hallway') {
+      const b = walkBubble(member);
+      return { type: 'walk', message: b.detail };
+    }
+    if (zone === 'desk' && member.status === 'working') {
+      const wb = workBubble(member);
+      return {
+        type: 'work',
+        message: wb.title.replace(/^🟢 |^⚪ /, ''),
+        extra: wb.detail,
+      };
+    }
+    return null;
+  }
+
+  function applyOfficeZone(agent, member, present) {
+    if (!present) {
+      if (agent.state !== 'away' && agent.state !== 'leaving') {
+        moveAgent(agent, POIS.entrance.x, POIS.entrance.y, 'leaving');
+        if (agent.checkedInToday) {
+          addFeedEntry('logout', agent.id, `Leaving for the day — last task: ${member.current_task}`);
+        }
+        setTimeout(() => {
+          moveAgent(agent, POIS.entrance.x, POIS.entrance.y + 10, 'away');
+          agent.el?.classList.add('fading-out');
+        }, 1800);
+      }
+      return;
+    }
+
+    agent.el?.classList.remove('fading-out');
+
+    if ((agent.state === 'away' || agent.state === 'leaving') && !agent.checkedInToday) {
+      addFeedEntry('login', agent.id, `Started shift — ${member.current_task}`);
+      agent.checkedInToday = true;
+    }
+
+    const zone = resolveOfficeZone(member);
+    const pos = zonePosition(zone, agent, member);
+    const zoneChanged = agent.lastOfficeZone != null && agent.lastOfficeZone !== zone;
+    agent.lastOfficeZone = zone;
+    moveAgent(agent, pos.x, pos.y, pos.state);
+
+    if (zoneChanged) {
+      const feed = feedForZone(zone, member);
+      if (feed) addFeedEntry(feed.type, agent.id, feed.message, feed.extra || '');
+    }
   }
 
   function tickAgent(agent, index, total, presentAgents) {
@@ -388,103 +778,17 @@ const OfficeSimulator = (() => {
     if (!member) return;
 
     ensureShiftStarted(agent);
-    const progress = workProgress(agent.id);
-    const present = shouldBePresent(agent.id) && !progress.done;
+    const present = shouldBePresent(agent.id);
 
-    if (progress.done && !agent.shiftEnded) {
+    if (minsNow() >= agent.leaveMin && !agent.shiftEnded) {
       agent.shiftEnded = true;
     }
 
-    if (!present) {
-      if (agent.state !== 'away' && agent.state !== 'leaving') {
-        moveAgent(agent, POIS.entrance.x, POIS.entrance.y, 'leaving');
-        if (agent.checkedInToday) {
-          addFeedEntry('logout', agent.id, `Finished 8-hour shift. Last task: ${member.current_task}`);
-        }
-        setTimeout(() => {
-          moveAgent(agent, POIS.entrance.x, POIS.entrance.y + 10, 'away');
-          agent.el.classList.add('fading-out');
-        }, 1800);
-      }
-      return;
-    }
-
-    agent.el.classList.remove('fading-out');
-
-    if ((agent.state === 'away' || agent.state === 'leaving') && present) {
-      moveAgent(agent, agent.desk.x, agent.desk.y, 'working');
-      if (!agent.checkedInToday) {
-        addFeedEntry('login', agent.id, `Started shift — ${member.current_task}`);
-        agent.checkedInToday = true;
-      }
-      return;
-    }
-
-    const workB = workBubble(member);
-    if (agent.apiWorking || member.status === 'working') {
-      moveAgent(agent, agent.desk.x, agent.desk.y, 'working');
-      return;
-    }
-
-    if (agent.state === 'away') {
-      moveAgent(agent, agent.desk.x, agent.desk.y, 'working');
-      return;
-    }
-
-    if (agent.busyUntil && Date.now() < agent.busyUntil) {
-      return;
-    }
-
-    const activity = pickIdleActivity(agent, presentAgents);
-    agent.busyUntil = Date.now() + 5000 + Math.random() * 4000;
-
-    if (activity.type === 'talking' && activity.buddy) {
-      const buddy = agents.get(activity.buddy);
-      const buddyMember = memberByName(activity.buddy);
-      if (buddy && buddyMember) {
-        const lines = dialogueLines(member, buddyMember);
-        agent.dialogue = lines;
-        buddy.dialogue = lines;
-        agent.dialogueIndex = 0;
-        buddy.dialogueIndex = 1;
-        const ox = (Math.random() - 0.5) * 14 + (agent.labelOffset || 0) * 0.4;
-        const oy = (buddy.labelOffset || 0) * 0.35;
-        const line = lines[0];
-        moveAgent(agent, POIS.lounge.x + ox, POIS.lounge.y + oy, 'talking');
-        moveAgent(buddy, POIS.lounge.x - ox, POIS.lounge.y + 4 - oy, 'talking');
-        buddy.busyUntil = agent.busyUntil;
-        addFeedEntry('talk', agent.id, line.text, `Talking with ${buddy.id} about ${member.project_title || buddyMember.project_title || 'work'}`);
-        addFeedEntry('talk', buddy.id, lines[1].text, `Reply to ${agent.id}`);
-        return;
-      }
-    }
-
-    if (activity.type === 'coffee') {
-      const b = coffeeBubble(member);
-      moveAgent(agent, POIS.coffee.x, POIS.coffee.y, 'coffee');
-      addFeedEntry('coffee', agent.id, b.detail);
-      return;
-    }
-
-    if (activity.type === 'walk') {
-      const b = walkBubble(member);
-      moveAgent(agent, POIS.hallway.x, POIS.hallway.y, 'walking');
-      addFeedEntry('walk', agent.id, b.detail);
-      return;
-    }
-
-    moveAgent(agent, agent.desk.x, agent.desk.y, 'working');
-    addFeedEntry('work', agent.id, workB.title.replace(/^🟢 |^⚪ /, ''), workB.detail);
+    applyOfficeZone(agent, member, present);
   }
 
   function renderFloor() {
     if (!container) return;
-    const deskHtml = DESKS.map((d, i) => `
-      <div class="office-desk" style="left:${d.x}%;top:${d.y}%">
-        <div class="desk-surface"></div>
-        <div class="desk-chair"></div>
-      </div>
-    `).join('');
 
     container.innerHTML = `
       <div class="office-layout-full">
@@ -506,13 +810,15 @@ const OfficeSimulator = (() => {
               <span id="office-clock" class="office-clock">--:--</span>
             </div>
           </div>
-          <div class="office-floor office-floor-full">
-            <div class="office-zone office-zone-entrance">🚪 Entrance</div>
-            <div class="office-zone office-zone-coffee">☕ Coffee Bar</div>
-            <div class="office-zone office-zone-lounge">💬 Lounge</div>
-            <div class="office-zone office-zone-dev">💻 Dev Floor</div>
-            ${deskHtml}
-            <div id="office-agents" class="office-agents"></div>
+          <div class="office-floor office-floor-full office-floor-3d-mode">
+            <div id="office-3d-wrap" class="office-3d-wrap"></div>
+            ${build2DFloorHtml()}
+            <div class="office-3d-legend">
+              <span>💻 Dev Floor</span>
+              <span>☕ Coffee Room</span>
+              <span>📞 Call Room</span>
+              <span>🎮 Chill Room</span>
+            </div>
           </div>
         </div>
         <div class="office-bottom-panels">
@@ -532,17 +838,33 @@ const OfficeSimulator = (() => {
     phaseEl = document.getElementById('office-phase-label');
     feedEl = document.getElementById('office-live-feed');
     rosterEl = document.getElementById('office-roster');
+    const wrap3d = document.getElementById('office-3d-wrap');
+    scene3dReady = initScene3D(wrap3d);
   }
 
   function ensureAgent(member, index) {
     const id = member.name;
     let agent = agents.get(id);
-    const desk = DESKS[index % DESKS.length];
+    const deskIdx = deskIndexFor(id);
+    const desk = deskForMember(id);
 
     if (!agent) {
-      const el = document.createElement('div');
-      el.className = 'office-agent state-away';
-      el.innerHTML = `
+      if (scene3d) {
+        agent = {
+          id, el: null, desk, deskIndex: deskIdx,
+          x: POIS.entrance.x, y: POIS.entrance.y,
+          state: 'away', apiWorking: false, lastOfficeZone: null,
+          entryMin: assignEntryMin(id),
+          leaveMin: assignLeaveMin(id),
+          shiftStart: null,
+          shiftEnded: false,
+          labelOffset: index % 5,
+        };
+        scene3d.upsertCharacter(id, member);
+      } else {
+        const el = document.createElement('div');
+        el.className = 'office-agent state-away';
+        el.innerHTML = `
         <div class="agent-shadow"></div>
         <div class="agent-body">
           <img class="agent-face" src="${faceUrl(member.name)}" alt="${escapeHtml(member.name)}" />
@@ -551,25 +873,36 @@ const OfficeSimulator = (() => {
         <div class="agent-label-stack">
           <div class="agent-name-tag">${escapeHtml(firstName(member.name))}</div>
           <div class="agent-activity-tag">Standing by</div>
-          <div class="agent-hours-tag">8h shift</div>
+          <div class="agent-hours-wrap">
+            <div class="agent-hours-bar"><div class="agent-hours-fill"></div></div>
+            <div class="agent-hours-tag">8h shift</div>
+          </div>
         </div>
       `;
-      agentsEl.appendChild(el);
-      agent = {
-        id, el, desk,
-        x: POIS.entrance.x, y: POIS.entrance.y,
-        state: 'away', busyUntil: 0, apiWorking: false,
-        readyMin: assignReadyMin(id),
-        shiftStart: null,
-        shiftEnded: false,
-        labelOffset: index % 5,
-      };
+        if (agentsEl) agentsEl.appendChild(el);
+        agent = {
+          id, el, desk, deskIndex: deskIdx,
+          x: POIS.entrance.x, y: POIS.entrance.y,
+          state: 'away', apiWorking: false, lastOfficeZone: null,
+          entryMin: assignEntryMin(id),
+          leaveMin: assignLeaveMin(id),
+          shiftStart: null,
+          shiftEnded: false,
+          labelOffset: index % 5,
+        };
+      }
       agents.set(id, agent);
     }
 
+    agent.desk = deskForMember(id);
+    agent.deskIndex = deskIdx;
     agent.apiWorking = member.status === 'working';
-    agent.el.title = `${member.name}\n${member.current_task}\n${member.work_details || ''}`;
+    if (agent.el) {
+      agent.el.title = `${member.name}\n${member.current_task}\n${member.work_details || ''}`;
+    }
     updateAgentPresence(agent, member);
+    const present = shouldBePresent(id);
+    applyOfficeZone(agent, member, present);
     return agent;
   }
 
@@ -599,14 +932,27 @@ const OfficeSimulator = (() => {
     renderRoster();
   }
 
-  function sync(membersData) {
+  async function sync(membersData) {
     if (!container) return;
     members = membersData || [];
-    if (!agentsEl) renderFloor();
+    if (!clockEl) renderFloor();
+    if (scene3dReady) await scene3dReady;
+    if (scene3d) {
+      document.getElementById('office-2d-fallback')?.classList.add('hidden');
+      agents.forEach((agent, name) => {
+        if (agent.el) {
+          agent.el.remove();
+          agent.el = null;
+        }
+      });
+    } else {
+      enable2DFallback();
+    }
     members.forEach((m, i) => ensureAgent(m, i));
     agents.forEach((agent, name) => {
       if (!members.find(m => m.name === name)) {
-        agent.el.remove();
+        agent.el?.remove();
+        scene3d?.removeCharacter(name);
         agents.delete(name);
       }
     });
@@ -624,7 +970,8 @@ const OfficeSimulator = (() => {
     liveFeed = [];
     feedDedup.clear();
     renderFloor();
-    tickTimer = setInterval(tick, 2800);
+    tickTimer = setInterval(tick, 1000);
+    if (scene3dReady) scene3dReady.then(() => tick());
     tick();
   }
 
@@ -636,7 +983,8 @@ const OfficeSimulator = (() => {
         a.checkedInToday = false;
         a.shiftStart = null;
         a.shiftEnded = false;
-        a.readyMin = assignReadyMin(a.id);
+        a.entryMin = assignEntryMin(a.id);
+        a.leaveMin = assignLeaveMin(a.id);
       });
     }
   }
@@ -646,6 +994,10 @@ const OfficeSimulator = (() => {
     if (tickTimer) {
       clearInterval(tickTimer);
       tickTimer = null;
+    }
+    if (scene3d) {
+      scene3d.dispose();
+      scene3d = null;
     }
   }
 

@@ -73,3 +73,43 @@ class ActivityLogDB(Base):
     details: Mapped[str] = mapped_column(Text)
     stage: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class OfficeAgentStateDB(Base):
+    __tablename__ = "office_agent_states"
+
+    agent_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    zone: Mapped[str] = mapped_column(String(32), default="desk")
+    activity: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class TeamAgentLiveDB(Base):
+    __tablename__ = "team_agent_live"
+
+    agent_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), default="idle")
+    role: Mapped[str] = mapped_column(String(64), default="")
+    task: Mapped[str] = mapped_column(Text, default="")
+    details: Mapped[str] = mapped_column(Text, default="")
+    project_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    project_title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    inhouse: Mapped[bool] = mapped_column(Boolean, default=False)
+    office_activity: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    conversation_partner: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class AppStateDB(Base):
+    __tablename__ = "app_state"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )

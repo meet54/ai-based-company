@@ -13,6 +13,7 @@ from urllib.parse import quote_plus
 import httpx
 
 from src.config import settings
+from src.database.state_store import app_state_store
 
 try:
     import certifi
@@ -20,7 +21,7 @@ except ImportError:
     certifi = None
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-STATE_PATH = ROOT / "data" / "discovered_leads.json"
+LEADS_STATE_KEY = "discovered_leads"
 
 # Client needs a freelancer / project-based work
 FREELANCE_SIGNALS = re.compile(
@@ -136,25 +137,20 @@ class LeadScout:
         self._load()
 
     def _load(self) -> None:
-        if not STATE_PATH.exists():
-            return
         try:
-            data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            data = app_state_store.get(LEADS_STATE_KEY)
+            if not data:
+                return
             for lead in data.get("leads", []):
                 self._leads[lead["id"]] = lead
             self._last_scan_at = data.get("last_scan_at")
-        except (json.JSONDecodeError, OSError):
+        except (TypeError, KeyError):
             pass
 
     def _save(self) -> None:
-        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        STATE_PATH.write_text(
-            json.dumps(
-                {"last_scan_at": self._last_scan_at, "leads": list(self._leads.values())},
-                indent=2,
-                default=str,
-            ),
-            encoding="utf-8",
+        app_state_store.set(
+            LEADS_STATE_KEY,
+            {"last_scan_at": self._last_scan_at, "leads": list(self._leads.values())},
         )
 
     def _classify_region(self, text: str) -> Optional[str]:
