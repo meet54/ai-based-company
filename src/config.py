@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     ceo_login_email: str = "smeet4454@gmail.com"
     ceo_login_password: str = "1234"
     auth_secret: str = "ai-nexus-ceo-session-secret"
+    lead_scout_enabled: bool = True
+    lead_scan_interval_sec: int = 90
     company_name: str = "AI Nexus Solutions"
     host: str = "0.0.0.0"
     port: int = 8765

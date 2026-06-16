@@ -21,10 +21,14 @@
       <nav>
         <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
         <button class="nav-btn" data-view="projects">📁 Projects <span id="projects-badge" class="nav-badge hidden"></span></button>
+        <button class="nav-btn" data-view="freelancing">💼 Freelancing <span id="freelancing-badge" class="nav-badge hidden"></span></button>
+        <button class="nav-btn" data-view="inhouse">🏠 In-House</button>
+        <button class="nav-btn" data-view="office">🏢 Live Office</button>
         <button class="nav-btn" data-view="team">📹 Live Monitor</button>
         <button class="nav-btn" data-view="workflow">🔄 Workflow</button>
         <button class="nav-btn" data-view="activity">📋 Activity Log</button>
       </nav>
+
       <div class="sidebar-footer">
         <div class="ceo-card">
           <div class="avatar">👔</div>
@@ -48,12 +52,12 @@
             <h2>Welcome back, <span id="ceo-greeting">CEO</span></h2>
             <p>Your AI team is working. Here's your company overview.</p>
           </div>
-          <button class="btn btn-primary" onclick="simulateLead()">+ Simulate New Client</button>
+          <div class="header-actions">
+            <button class="btn btn-primary" onclick="simulateLead()">+ Demo Client</button>
+          </div>
         </header>
 
         <div class="stats-grid" id="stats-grid"></div>
-
-        <div id="inhouse-walkgether" class="inhouse-card hidden"></div>
 
         <div id="notification-banner" class="notification-banner hidden"></div>
 
@@ -69,6 +73,42 @@
         </div>
       </section>
 
+      <!-- Freelancing View -->
+      <section id="view-freelancing" class="view">
+        <header class="page-header">
+          <div>
+            <h2>💼 Freelancing</h2>
+            <p>Live freelance gigs from USA, UK, EU, India & Japan — Germany excluded.</p>
+          </div>
+          <button class="btn btn-primary" onclick="scanLeadsNow()">🔍 Scan Freelance Gigs</button>
+        </header>
+
+        <div id="live-leads-panel" class="live-leads-panel freelancing-view-panel">
+          <div class="live-leads-header">
+            <div>
+              <span class="live-dot"></span>
+              <strong>Live Freelance Opportunities</strong>
+              <span id="leads-scan-status" class="leads-meta">USA · UK · EU · India · Japan freelance gigs (Germany excluded)</span>
+            </div>
+            <span id="leads-count-badge" class="leads-count-badge">0 new</span>
+          </div>
+          <div id="live-leads-list" class="live-leads-list">
+            <div class="list-empty">Starting real-time scan…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- In-House Project View -->
+      <section id="view-inhouse" class="view">
+        <header class="page-header">
+          <div>
+            <h2>🏠 In-House Project</h2>
+            <p>Internal products built by your AI team between client work.</p>
+          </div>
+        </header>
+        <div id="inhouse-walkgether" class="inhouse-card hidden"></div>
+      </section>
+
       <!-- Projects View -->
       <section id="view-projects" class="view">
         <header class="page-header">
@@ -81,12 +121,28 @@
         <div id="projects-list" class="projects-grid"></div>
       </section>
 
-      <!-- Live Team Monitor (CCTV) -->
+      <!-- Live Office (virtual floor) -->
+      <section id="view-office" class="view">
+        <header class="page-header">
+          <div>
+            <h2>🏢 Live Office</h2>
+            <p>Virtual office — see what each person is doing right now. Everyone works 8 hours per day on a flexible schedule.</p>
+          </div>
+          <div class="monitor-status">
+            <span class="live-dot"></span>
+            <span id="office-live-label">LIVE</span>
+            <span id="office-stats" class="monitor-stats"></span>
+          </div>
+        </header>
+        <div id="virtual-office" class="virtual-office"></div>
+      </section>
+
+      <!-- Live Team Monitor -->
       <section id="view-team" class="view">
         <header class="page-header">
           <div>
-            <h2>📹 Live Team Monitor</h2>
-            <p>Watch your AI team in real-time — hover any member to see what they're doing.</p>
+            <h2>📹 Live Monitor</h2>
+            <p>Real-time status cards for every team member — hover for full details.</p>
           </div>
           <div class="monitor-status">
             <span class="live-dot"></span>
@@ -96,7 +152,7 @@
         </header>
         <div id="team-monitor-grid" class="monitor-grid"></div>
         <div class="card" style="margin-top:1.5rem">
-          <h3>Recent Team Activity</h3>
+          <h3>Team Roster & Activity</h3>
           <div id="monitor-feed" class="activity-feed"></div>
         </div>
       </section>
@@ -169,6 +225,7 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
+  <script src="/static/office.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

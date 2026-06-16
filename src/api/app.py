@@ -31,6 +31,8 @@ from src.models.schemas import (
 )
 from src.services.code_generator import code_generator
 from src.services.idle_worker import idle_worker
+from src.services.lead_scout import lead_scout
+from src.services.lead_scout_worker import lead_scout_worker
 from src.services.team_monitor import team_monitor
 from src.services.walkgether import walkgether
 from src.walkgether.repository import walkgether_db
@@ -60,11 +62,18 @@ async def lifespan(app: FastAPI):
     await walkgether_db.seed_demo_users()
     walkgether.init()
     worker = asyncio.create_task(idle_worker.start())
+    lead_worker = asyncio.create_task(lead_scout_worker.start())
     yield
     idle_worker.stop()
+    lead_scout_worker.stop()
     worker.cancel()
+    lead_worker.cancel()
     try:
         await worker
+    except asyncio.CancelledError:
+        pass
+    try:
+        await lead_worker
     except asyncio.CancelledError:
         pass
 
@@ -298,6 +307,62 @@ async def dashboard():
         "inhouse": {
             "walkgether": walkgether.get_status(),
         },
+        "leads": {
+            "status": lead_scout.get_status(),
+            "items": lead_scout.list_leads(status="new", limit=8),
+        },
+    }
+
+
+@app.get("/api/leads/live")
+async def get_live_leads():
+    return {
+        "status": lead_scout.get_status(),
+        "leads": lead_scout.list_leads(status="new", limit=30),
+    }
+
+
+@app.post("/api/leads/scan")
+async def scan_leads():
+    return await lead_scout.scan()
+
+
+@app.post("/api/leads/{lead_id}/dismiss")
+async def dismiss_lead(lead_id: str):
+    if not lead_scout.dismiss_lead(lead_id):
+        raise HTTPException(404, "Lead not found")
+    return {"ok": True}
+
+
+@app.post("/api/leads/{lead_id}/approach")
+async def approach_lead(lead_id: str):
+    """Convert a discovered lead into a client project and start the AI pipeline."""
+    lead = lead_scout.get_lead(lead_id)
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    if lead.get("status") == "converted":
+        raise HTTPException(400, "Lead already converted")
+
+    source_note = f"Source: {lead.get('platform_label')} · {lead.get('url', '')}"
+    project = Project(
+        title=f"{lead['company_name']} — {lead['title'][:60]}",
+        client_company=lead["company_name"],
+        client_name=lead["contact_name"],
+        client_email=lead["contact_email"],
+        description=f"{lead['description']}\n\n---\n{source_note}",
+        current_stage=ProjectStage.LEAD_GENERATION,
+        status=ProjectStatus.ACTIVE,
+        ceo_notes=f"Discovered via {lead.get('platform_label')}",
+    )
+    created = await db.create_project(project)
+    lead_scout.mark_converted(lead_id, created.id)
+    result = await workflow.run_full_pipeline(created.id, stop_at_ceo=True)
+    return {
+        "message": f"Approaching {lead['company_name']} — pipeline started!",
+        "lead_id": lead_id,
+        "approach_urls": lead.get("approach_urls", {}),
+        "outreach_draft": lead.get("outreach_draft", ""),
+        **result,
     }
 
 

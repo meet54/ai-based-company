@@ -42,6 +42,7 @@ const WORKFLOW_DETAILS = [
 let company = {};
 let currentPreviewId = null;
 let monitorInterval = null;
+let leadsPollInterval = null;
 
 const ROLE_EMOJI = {
   sales: '💼', marketing: '📣', hr: '🧑‍💼', business_analyst: '📋',
@@ -212,11 +213,36 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 
 async function loadView(view) {
   if (monitorInterval) { clearInterval(monitorInterval); monitorInterval = null; }
+  if (view !== 'office') OfficeSimulator.stop();
   if (view === 'dashboard') await loadDashboard();
+  if (view === 'freelancing') await loadFreelancingView();
+  if (view === 'inhouse') await loadInhouseView();
+  if (view === 'office') await loadLiveOffice();
   if (view === 'projects') await loadProjects();
   if (view === 'team') await loadTeamMonitor();
   if (view === 'workflow') renderWorkflow();
   if (view === 'activity') await loadActivity();
+}
+
+async function loadLiveOffice() {
+  OfficeSimulator.start('virtual-office');
+
+  const render = async () => {
+    const data = await api('/team/live');
+    const wg = data.inhouse_project;
+    const phase = OfficeSimulator.officePhase();
+    const phaseNote = phase === 'closed' ? ' · Office closed' : '';
+    const statsEl = document.getElementById('office-stats');
+    if (statsEl) {
+      statsEl.textContent =
+        `${data.working_count} working · ${data.idle_count} idle · ${data.active_projects} client projects` +
+        (wg ? ` · 🚶 Walkgether ${wg.progress_percent}%` : '') + phaseNote;
+    }
+    OfficeSimulator.sync(data.members);
+  };
+
+  await render();
+  monitorInterval = setInterval(render, 4000);
 }
 
 async function loadTeamMonitor() {
@@ -294,6 +320,127 @@ async function init() {
     document.getElementById('demo-badge').classList.remove('hidden');
   }
   await loadDashboard();
+  startLeadsPolling();
+  refreshLiveLeads();
+}
+
+function startLeadsPolling() {
+  if (leadsPollInterval) clearInterval(leadsPollInterval);
+  leadsPollInterval = setInterval(refreshLiveLeads, 30000);
+}
+
+function renderLiveLeads(leadsData) {
+  const status = leadsData?.status || {};
+  const leads = leadsData?.items || leadsData?.leads || [];
+  const statusEl = document.getElementById('leads-scan-status');
+  const badgeEl = document.getElementById('leads-count-badge');
+  const listEl = document.getElementById('live-leads-list');
+
+  if (statusEl) {
+    const sources = (status.last_scan_sources || []).join(', ') || 'Reddit, HN, Remote OK, Jobicy';
+    const when = status.last_scan_at
+      ? `Last scan: ${formatTime(status.last_scan_at)}`
+      : 'Auto-scan every 90s';
+    const regions = (status.target_regions || ['USA', 'UK', 'EU', 'India', 'Japan']).join(' · ');
+    statusEl.textContent = status.scanning
+      ? `Scanning freelance gigs in ${regions}…`
+      : `${when} · Regions: ${regions} (no Germany)`;
+  }
+  if (badgeEl) {
+    badgeEl.textContent = `${status.new_leads ?? leads.length} new`;
+  }
+  const navBadge = document.getElementById('freelancing-badge');
+  if (navBadge) {
+    const count = status.new_leads ?? leads.length;
+    if (count > 0) {
+      navBadge.textContent = count;
+      navBadge.classList.remove('hidden');
+    } else {
+      navBadge.classList.add('hidden');
+    }
+  }
+  if (!listEl) return;
+
+  if (!leads.length) {
+    listEl.innerHTML = `<div class="list-empty">${
+      status.scanning
+        ? 'Scanning r/forhire, r/freelance, r/jobbit & HN for paid freelance work…'
+        : 'No freelance gigs found yet. Click <strong>Scan Freelance Gigs</strong> or wait for auto-scan.'
+    }</div>`;
+    return;
+  }
+
+  listEl.innerHTML = leads.map(lead => `
+    <div class="lead-card" data-lead-id="${escapeHtml(lead.id)}">
+      <div class="lead-card-main">
+        <span class="lead-platform">${lead.platform_icon || '📌'} ${escapeHtml(lead.platform_label)}</span>
+        <span class="lead-type-badge">${escapeHtml(lead.gig_type || 'Freelance')}</span>
+        ${lead.region ? `<span class="lead-region-badge">${escapeHtml(lead.region)}</span>` : ''}
+        <h4>${escapeHtml(lead.company_name)} — ${escapeHtml(lead.title)}</h4>
+        <p class="lead-desc">${escapeHtml((lead.description || '').slice(0, 220))}${(lead.description || '').length > 220 ? '…' : ''}</p>
+        <div class="lead-meta">
+          <span class="lead-score">Match ${lead.score}%</span>
+          ${lead.budget_hint ? `<span class="lead-budget">💰 ${escapeHtml(lead.budget_hint)}</span>` : ''}
+          · ${escapeHtml(lead.contact_name)}
+          · ${escapeHtml(lead.location || 'Remote')}
+        </div>
+      </div>
+      <div class="lead-actions">
+        <button type="button" class="btn btn-success btn-sm" onclick="approachLead('${escapeHtml(lead.id)}')">✓ Apply & Quote</button>
+        <a class="lead-link-btn" href="${escapeHtml(lead.approach_urls?.linkedin || lead.approach_urls?.linkedin_people || lead.url)}" target="_blank" rel="noopener">Find on LinkedIn ↗</a>
+        <a class="lead-link-btn" href="${escapeHtml(lead.url)}" target="_blank" rel="noopener">View gig post ↗</a>
+        <button type="button" class="btn btn-outline btn-sm" onclick="dismissLead('${escapeHtml(lead.id)}')">Dismiss</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadFreelancingView() {
+  await refreshLiveLeads();
+}
+
+async function refreshLiveLeads() {
+  try {
+    const data = await api('/leads/live');
+    renderLiveLeads({ status: data.status, items: data.leads });
+  } catch {
+    /* ignore poll errors */
+  }
+}
+
+async function scanLeadsNow() {
+  try {
+    showToast('Scanning Reddit & freelance boards for paid gigs…', 'success');
+    const result = await api('/leads/scan', { method: 'POST', body: '{}' });
+    showToast(result.message || 'Scan complete', 'success');
+    await refreshLiveLeads();
+  } catch (err) {
+    showToast(err.message || 'Scan failed');
+  }
+}
+
+async function approachLead(leadId) {
+  try {
+    showToast('Sales team approaching client & building quotation…', 'success');
+    const result = await api(`/leads/${leadId}/approach`, { method: 'POST', body: '{}' });
+    showToast(result.message, 'success');
+    await refreshLiveLeads();
+    if (document.querySelector('.view.active')?.id === 'view-dashboard') {
+      await loadDashboard();
+    }
+    if (result.project) openProject(result.project.id);
+  } catch (err) {
+    showToast(err.message || 'Could not approach lead');
+  }
+}
+
+async function dismissLead(leadId) {
+  try {
+    await api(`/leads/${leadId}/dismiss`, { method: 'POST', body: '{}' });
+    await refreshLiveLeads();
+  } catch (err) {
+    showToast(err.message);
+  }
 }
 
 function renderInhouseWalkgether(wg) {
@@ -337,6 +484,17 @@ function renderInhouseWalkgether(wg) {
   `;
 }
 
+async function loadInhouseView() {
+  try {
+    const wg = await api('/inhouse/walkgether');
+    renderInhouseWalkgether(wg);
+  } catch (err) {
+    const el = document.getElementById('inhouse-walkgether');
+    el.classList.remove('hidden');
+    el.innerHTML = `<div class="list-empty">Could not load Walkgether: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
 function openWalkgetherAppPreview() {
   currentPreviewId = 'walkgether-app';
   document.getElementById('preview-title').textContent = 'Walkgether App — Live';
@@ -359,7 +517,6 @@ async function loadDashboard() {
   const data = await api('/dashboard');
   const s = data.stats;
   renderNotifications(data.notifications);
-  renderInhouseWalkgether(data.inhouse?.walkgether);
 
   document.getElementById('stats-grid').innerHTML = `
     <div class="stat-card"><div class="label">Total Projects</div><div class="value">${s.total_projects}</div></div>
@@ -372,7 +529,7 @@ async function loadDashboard() {
 
   const projectsEl = document.getElementById('recent-projects');
   if (!data.recent_projects.length) {
-    projectsEl.innerHTML = '<div class="list-empty">No projects yet. Click "Simulate New Client" to start!</div>';
+    projectsEl.innerHTML = '<div class="list-empty">No projects yet. Open <strong>Freelancing</strong> to find gigs or click Demo Client.</div>';
   } else {
     projectsEl.innerHTML = data.recent_projects.map(p => renderProjectCard(p, { compact: true })).join('');
   }
