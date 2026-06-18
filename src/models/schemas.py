@@ -20,6 +20,12 @@ class AgentRole(str, Enum):
     QA_TESTER = "qa_tester"
     FINANCE = "finance"
     CLIENT_SUCCESS = "client_success"
+    SOCIAL_TEAM_LEADER = "social_team_leader"
+    SOCIAL_MEDIA_EXECUTIVE = "social_media_executive"
+    SOCIAL_MEDIA_ANALYST = "social_media_analyst"
+    GRAPHIC_DESIGNER = "graphic_designer"
+    GRAPHIC_DESIGNER_2 = "graphic_designer_2"
+    SOCIAL_MEDIA_COORDINATOR = "social_media_coordinator"
 
 
 class ProjectStage(str, Enum):
@@ -29,6 +35,10 @@ class ProjectStage(str, Enum):
     CEO_APPROVAL = "ceo_approval"
     PROJECT_KICKOFF = "project_kickoff"
     DEVELOPMENT = "development"
+    CONTENT_STRATEGY = "content_strategy"
+    CONTENT_CREATION = "content_creation"
+    CLIENT_CONTENT_APPROVAL = "client_content_approval"
+    SOCIAL_PUBLISH = "social_publish"
     TEAM_LEADER_REVIEW = "team_leader_review"
     QA_TESTING = "qa_testing"
     CLIENT_HANDOVER = "client_handover"
@@ -52,6 +62,21 @@ STAGE_ORDER = [
     ProjectStage.DEVELOPMENT,
     ProjectStage.TEAM_LEADER_REVIEW,
     ProjectStage.QA_TESTING,
+    ProjectStage.CLIENT_HANDOVER,
+    ProjectStage.PAYMENT_COLLECTION,
+    ProjectStage.PROJECT_CLOSED,
+]
+
+SOCIAL_STAGE_ORDER = [
+    ProjectStage.LEAD_GENERATION,
+    ProjectStage.REQUIREMENT_GATHERING,
+    ProjectStage.QUOTATION,
+    ProjectStage.CEO_APPROVAL,
+    ProjectStage.PROJECT_KICKOFF,
+    ProjectStage.CONTENT_STRATEGY,
+    ProjectStage.CONTENT_CREATION,
+    ProjectStage.CLIENT_CONTENT_APPROVAL,
+    ProjectStage.SOCIAL_PUBLISH,
     ProjectStage.CLIENT_HANDOVER,
     ProjectStage.PAYMENT_COLLECTION,
     ProjectStage.PROJECT_CLOSED,
@@ -129,9 +154,14 @@ class Project(BaseModel):
     tech_stack: str = ""
     pricing_tier: str = ""
     source_type: str = ""
+    service_category: str = "software"
     current_stage: ProjectStage = ProjectStage.LEAD_GENERATION
     status: ProjectStatus = ProjectStatus.ACTIVE
     assigned_developers: list[str] = Field(default_factory=list)
+    assigned_social_team: list[str] = Field(default_factory=list)
+    client_content_approved: bool = False
+    client_notes: str = ""
+    published_platforms: list[str] = Field(default_factory=list)
     quotation_total: Optional[float] = None
     payment_status: str = "pending"
     ceo_notes: str = ""
@@ -146,9 +176,15 @@ class CreateProjectRequest(BaseModel):
     client_email: str
     description: str
     budget_hint: Optional[str] = None
+    service_category: str = "software"
 
 
 class CEOApprovalRequest(BaseModel):
+    approved: bool
+    notes: str = ""
+
+
+class ClientContentApprovalRequest(BaseModel):
     approved: bool
     notes: str = ""
 
@@ -159,6 +195,7 @@ class ClientInquiryRequest(BaseModel):
     contact_email: str
     phone: str = ""
     project_type: str = "website"
+    service_category: str = ""
     service_tier: str = ""
     description: str
     budget_range: str = ""

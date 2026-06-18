@@ -23,6 +23,7 @@ from src.config import settings
 from src.database.repository import db, init_db
 from src.models.schemas import (
     CEOApprovalRequest,
+    ClientContentApprovalRequest,
     ClientInquiryRequest,
     CreateProjectRequest,
     Project,
@@ -30,6 +31,7 @@ from src.models.schemas import (
     ProjectStatus,
 )
 from src.services.code_generator import code_generator
+from src.services.social_content_generator import social_content_generator
 from src.services.idle_worker import idle_worker
 from src.services.lead_scout import lead_scout
 from src.services.lead_scout_worker import lead_scout_worker
@@ -51,12 +53,23 @@ def _enrich_project(project_dict: dict) -> dict:
         project_dict.get("status") == "completed"
         or project_dict.get("current_stage") == "project_closed"
     )
-    preview_available = bool(pid and code_generator.has_preview(pid))
+    is_social = project_dict.get("service_category") == "social_media"
+    code_preview = bool(pid and code_generator.has_preview(pid))
+    social_preview = bool(pid and social_content_generator.has_preview(pid))
+    preview_available = social_preview or code_preview
+    if social_preview:
+        preview_url = social_content_generator.preview_url(pid)
+    elif code_preview:
+        preview_url = code_generator.preview_url(pid)
+    else:
+        preview_url = None
     return {
         **project_dict,
         "is_done": is_done,
+        "is_social": is_social,
         "preview_available": preview_available,
-        "preview_url": code_generator.preview_url(pid) if preview_available else None,
+        "preview_url": preview_url,
+        "social_preview": social_preview,
     }
 
 
@@ -421,6 +434,11 @@ async def get_project(project_id: int):
 @app.post("/api/projects")
 async def create_project(req: CreateProjectRequest):
     tier_id = classify_tier(req.description)
+    service_category = req.service_category or "software"
+    if service_category == "social_media" or tier_id.startswith("social_media"):
+        service_category = "social_media"
+        if not tier_id.startswith("social_media"):
+            tier_id = "social_media_starter"
     project = Project(
         title=req.title,
         client_company=req.client_company,
@@ -429,6 +447,7 @@ async def create_project(req: CreateProjectRequest):
         description=req.description,
         pricing_tier=tier_id,
         source_type="manual",
+        service_category=service_category,
         current_stage=ProjectStage.LEAD_GENERATION,
         status=ProjectStatus.ACTIVE,
     )
@@ -457,6 +476,8 @@ async def run_all_stages(project_id: int):
         raise HTTPException(404, "Project not found")
     if project.current_stage == ProjectStage.CEO_APPROVAL:
         raise HTTPException(400, "CEO approval required first")
+    if project.current_stage == ProjectStage.CLIENT_CONTENT_APPROVAL:
+        raise HTTPException(400, "Client content approval required first")
     try:
         from src.services.llm import llm_service
         llm_service._rate_limit_hit = False
@@ -485,11 +506,30 @@ async def ceo_approve(project_id: int, req: CEOApprovalRequest):
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/projects/{project_id}/client-approve")
+async def client_approve_content(project_id: int, req: ClientContentApprovalRequest):
+    """Client approves social posts/ads/reels before publishing."""
+    try:
+        return await workflow.client_approve_content(project_id, req.approved, req.notes)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 class SimulateLeadRequest(BaseModel):
     company_name: str = "TechStart Inc."
     contact_name: str = "John Smith"
     contact_email: str = "john@techstart.com"
     need: str = "We need a modern e-commerce website with payment integration"
+
+
+class SimulateSocialRequest(BaseModel):
+    company_name: str = "Bloom Café"
+    contact_name: str = "Sarah Miller"
+    contact_email: str = "sarah@bloomcafe.com"
+    need: str = (
+        "Monthly Instagram and Facebook posts, 2 paid ad campaigns, "
+        "and short reels to promote our new menu"
+    )
 
 
 @app.post("/api/simulate-lead")
@@ -510,6 +550,30 @@ async def simulate_lead(req: SimulateLeadRequest):
     result = await workflow.run_full_pipeline(created.id, stop_at_ceo=True)
     return {
         "message": f"New lead from {req.company_name}! Pipeline started.",
+        **result,
+    }
+
+
+@app.post("/api/simulate-social")
+async def simulate_social_campaign(req: SimulateSocialRequest):
+    """Demo social media client — posts, ads, reels with client approval."""
+    tier_id = classify_tier(req.need, project_type="social_media")
+    project = Project(
+        title=f"{req.company_name} — Social Media Campaign",
+        client_company=req.company_name,
+        client_name=req.contact_name,
+        client_email=req.contact_email,
+        description=req.need,
+        pricing_tier=tier_id,
+        source_type="simulated",
+        service_category="social_media",
+        current_stage=ProjectStage.LEAD_GENERATION,
+        status=ProjectStatus.ACTIVE,
+    )
+    created = await db.create_project(project)
+    result = await workflow.run_full_pipeline(created.id, stop_at_ceo=True)
+    return {
+        "message": f"Social campaign for {req.company_name} started!",
         **result,
     }
 
@@ -572,11 +636,17 @@ async def client_inquiry(req: ClientInquiryRequest):
         "custom": "Custom Software",
         "single_page": "Single Page Website",
         "dynamic_2_page": "Dynamic 2-Page Website",
+        "social_media": "Social Media Campaign",
     }
     tier_id = req.service_tier or classify_tier(
         f"{req.description} {req.must_have_features}",
         project_type=req.project_type,
     )
+    service_category = "social_media" if (
+        req.service_category == "social_media"
+        or req.project_type in ("social_media", "social")
+        or str(tier_id).startswith("social_media")
+    ) else "software"
     tier = get_tier(tier_id)
     project_type = type_labels.get(req.project_type, req.project_type)
     title = f"{req.company_name} — {tier.label if tier else project_type}"
@@ -603,6 +673,7 @@ async def client_inquiry(req: ClientInquiryRequest):
         description="\n".join(description_parts),
         pricing_tier=tier_id,
         source_type="client_inquiry",
+        service_category=service_category,
         current_stage=ProjectStage.LEAD_GENERATION,
         status=ProjectStatus.ACTIVE,
         ceo_notes=f"Public inquiry · Tier: {tier.label if tier else tier_id} · Est. ${tier.base_usd if tier else 0:,.0f} USD",

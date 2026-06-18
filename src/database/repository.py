@@ -45,6 +45,16 @@ def _migrate_project_columns(connection) -> None:
         connection.execute(text("ALTER TABLE projects ADD COLUMN pricing_tier VARCHAR(64) DEFAULT ''"))
     if "source_type" not in cols:
         connection.execute(text("ALTER TABLE projects ADD COLUMN source_type VARCHAR(64) DEFAULT ''"))
+    if "service_category" not in cols:
+        connection.execute(text("ALTER TABLE projects ADD COLUMN service_category VARCHAR(32) DEFAULT 'software'"))
+    if "assigned_social_team" not in cols:
+        connection.execute(text("ALTER TABLE projects ADD COLUMN assigned_social_team TEXT DEFAULT '[]'"))
+    if "client_content_approved" not in cols:
+        connection.execute(text("ALTER TABLE projects ADD COLUMN client_content_approved BOOLEAN DEFAULT 0"))
+    if "client_notes" not in cols:
+        connection.execute(text("ALTER TABLE projects ADD COLUMN client_notes TEXT DEFAULT ''"))
+    if "published_platforms" not in cols:
+        connection.execute(text("ALTER TABLE projects ADD COLUMN published_platforms TEXT DEFAULT '[]'"))
 
 
 def _parse_devs(raw: Optional[str]) -> list[str]:
@@ -69,9 +79,14 @@ def _project_from_db(row: ProjectDB) -> Project:
         tech_stack=row.tech_stack or "",
         pricing_tier=getattr(row, "pricing_tier", "") or "",
         source_type=getattr(row, "source_type", "") or "",
+        service_category=getattr(row, "service_category", "") or "software",
         current_stage=ProjectStage(row.current_stage),
         status=ProjectStatus(row.status),
         assigned_developers=_parse_devs(row.assigned_developers),
+        assigned_social_team=_parse_devs(getattr(row, "assigned_social_team", None)),
+        client_content_approved=bool(getattr(row, "client_content_approved", False)),
+        client_notes=getattr(row, "client_notes", "") or "",
+        published_platforms=_parse_devs(getattr(row, "published_platforms", None)),
         quotation_total=row.quotation_total,
         payment_status=row.payment_status,
         ceo_notes=row.ceo_notes or "",
@@ -94,9 +109,14 @@ class Database:
                 tech_stack=project.tech_stack,
                 pricing_tier=project.pricing_tier,
                 source_type=project.source_type,
+                service_category=project.service_category,
                 current_stage=project.current_stage.value,
                 status=project.status.value,
                 assigned_developers=json.dumps(project.assigned_developers),
+                assigned_social_team=json.dumps(project.assigned_social_team),
+                client_content_approved=project.client_content_approved,
+                client_notes=project.client_notes,
+                published_platforms=json.dumps(project.published_platforms),
                 quotation_total=project.quotation_total,
                 payment_status=project.payment_status,
                 ceo_notes=project.ceo_notes,
@@ -131,9 +151,14 @@ class Database:
             row.tech_stack = project.tech_stack
             row.pricing_tier = project.pricing_tier
             row.source_type = project.source_type
+            row.service_category = project.service_category
             row.current_stage = project.current_stage.value
             row.status = project.status.value
             row.assigned_developers = json.dumps(project.assigned_developers)
+            row.assigned_social_team = json.dumps(project.assigned_social_team)
+            row.client_content_approved = project.client_content_approved
+            row.client_notes = project.client_notes
+            row.published_platforms = json.dumps(project.published_platforms)
             row.quotation_total = project.quotation_total
             row.payment_status = project.payment_status
             row.ceo_notes = project.ceo_notes

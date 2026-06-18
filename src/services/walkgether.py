@@ -117,7 +117,7 @@ WALKGETHER_APP_TASKS: list[dict] = [
         "role": AgentRole.HR,
         "title": "Hire mobile app developers",
         "detail": "Recruiting React Native specialists for Walkgether iOS & Android MVP.",
-        "output": "Hired 2 mobile engineers: Aisha Khan (Lead Mobile Dev) and Marcus Johnson (App Developer). Team expanded to 13.",
+        "output": "Hired mobile engineers: Manan Desai (Lead Mobile Dev) and Daxesh Bhoi (App Developer). Team expanded to 18.",
         "writes_doc": "docs/mobile-team-hiring.md",
     },
     {
@@ -476,8 +476,8 @@ See walkgether.txt for full product specification.
         total = len(active)
         progress = min(100, round((done_count / total) * 100)) if total else 0
         mobile_team = [
-            {"name": "Aisha Khan", "role": "Lead Mobile Developer"},
-            {"name": "Marcus Johnson", "role": "App Developer"},
+            {"name": "Manan Desai", "role": "Lead Mobile Developer"},
+            {"name": "Daxesh Bhoi", "role": "App Developer"},
         ]
         return {
             "id": INHOUSE_ID,

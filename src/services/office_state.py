@@ -2,19 +2,26 @@
 
 from datetime import datetime, timedelta
 
+from src.agents.team import get_social_team
 from src.database.state_store import office_store
 
+SOCIAL_TEAM_NAMES = frozenset(m.name for m in get_social_team())
+
 VALID_ZONES = frozenset({
-    "desk", "coffee", "coffee_room", "lounge", "hallway", "entrance", "away",
+    "desk", "social_floor", "coffee", "coffee_room", "lounge", "meeting_room", "hallway", "entrance", "away",
     "phone_room", "chill_room",
 })
-IDLE_BREAK_ZONES = ("coffee_room", "phone_room", "chill_room", "lounge", "hallway")
+IDLE_BREAK_ZONES = ("coffee_room", "phone_room", "chill_room", "lounge", "meeting_room", "hallway")
 ACTIVITY_COFFEE = "coffee_break"
 ACTIVITY_QUERY = "query"
 ACTIVITY_PHONE = "phone_call"
 ACTIVITY_GAMING = "gaming"
 
-ZONE_ALIASES = {"coffee": "coffee_room"}
+ZONE_ALIASES = {"coffee": "coffee_room", "lounge": "meeting_room"}
+
+
+def _default_desk_zone(agent_name: str) -> str:
+    return "social_floor" if agent_name in SOCIAL_TEAM_NAMES else "desk"
 
 
 class OfficeState:
@@ -71,7 +78,7 @@ class OfficeState:
         if t == ACTIVITY_COFFEE:
             return "coffee_room"
         if t == ACTIVITY_QUERY:
-            return "desk"
+            return "meeting_room"
         if t == ACTIVITY_PHONE:
             return "phone_room"
         if t == ACTIVITY_GAMING:
@@ -80,16 +87,16 @@ class OfficeState:
 
     def resolve_zone(self, agent_name: str, status: str) -> str:
         if status == "working":
-            return "desk"
+            return _default_desk_zone(agent_name)
         activity = self.get_activity(agent_name)
         if activity:
             return self._zone_for_activity(activity)
         if agent_name in self._zones:
             zone = self.get_zone(agent_name)
             if zone in IDLE_BREAK_ZONES and not activity:
-                return "desk"
+                return _default_desk_zone(agent_name)
             return zone
-        return "desk"
+        return _default_desk_zone(agent_name)
 
     def ensure_zone(self, agent_name: str, status: str) -> str:
         return self.resolve_zone(agent_name, status)
@@ -149,11 +156,14 @@ class OfficeState:
         query: str,
         answer: str,
         duration_sec: int = 120,
+        zone: str = "meeting_room",
     ) -> None:
+        if zone not in VALID_ZONES:
+            zone = _default_desk_zone(asker)
         until = (self._utcnow() + timedelta(seconds=duration_sec)).isoformat()
         now = self._utcnow().isoformat()
         self._zones[asker] = {
-            "zone": "desk",
+            "zone": zone,
             "activity": {
                 "type": ACTIVITY_QUERY,
                 "role": "asker",
@@ -165,7 +175,7 @@ class OfficeState:
             "updated_at": now,
         }
         self._zones[responder] = {
-            "zone": "desk",
+            "zone": zone,
             "activity": {
                 "type": ACTIVITY_QUERY,
                 "role": "responder",
@@ -179,10 +189,10 @@ class OfficeState:
         self._save_agent(asker)
         self._save_agent(responder)
 
-    def clear_activity(self, agent_name: str, zone: str = "desk") -> None:
+    def clear_activity(self, agent_name: str, zone: str | None = None) -> None:
         entry = self._zones.get(agent_name, {})
         entry.pop("activity", None)
-        entry["zone"] = zone
+        entry["zone"] = zone if zone is not None else _default_desk_zone(agent_name)
         entry["updated_at"] = self._utcnow().isoformat()
         self._zones[agent_name] = entry
         self._save_agent(agent_name)
@@ -196,13 +206,13 @@ class OfficeState:
             until = self._parse_until(activity)
             if until and until <= self._utcnow():
                 expired.append(name)
-                self.clear_activity(name, zone="desk")
+                self.clear_activity(name)
         return expired
 
     def on_working(self, agent_name: str) -> None:
         entry = self._zones.get(agent_name, {})
         entry.pop("activity", None)
-        entry["zone"] = "desk"
+        entry["zone"] = _default_desk_zone(agent_name)
         entry["updated_at"] = self._utcnow().isoformat()
         self._zones[agent_name] = entry
         self._save_agent(agent_name)
@@ -210,7 +220,7 @@ class OfficeState:
     def on_idle(self, agent_name: str) -> None:
         if self.get_activity(agent_name):
             return
-        self.set_zone(agent_name, "desk")
+        self.set_zone(agent_name, _default_desk_zone(agent_name))
 
     def on_absent(self, agent_name: str) -> None:
         self.clear_activity(agent_name, zone="away")
@@ -278,10 +288,10 @@ class OfficeState:
         first = (partner or "").split()[0] if partner else "teammate"
         if role == "asker":
             task = f"Asking {first}: {query[:70]}{'…' if query and len(query) > 70 else ''}"
-            details = f"Waiting for {partner}'s answer at their desk."
+            details = f"Discussing with {partner} in the meeting room."
         else:
             task = f"Answering {first}'s question"
-            details = answer or f"Helping {partner} with a quick question at their desk."
+            details = answer or f"Helping {partner} in the meeting room."
 
         return {
             "office_activity": "query",

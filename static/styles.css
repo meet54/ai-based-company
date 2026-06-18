@@ -657,8 +657,50 @@ nav { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
   background:
     linear-gradient(rgba(62, 82, 112, 0.35) 1px, transparent 1px),
     linear-gradient(90deg, rgba(62, 82, 112, 0.35) 1px, transparent 1px),
-    linear-gradient(145deg, #1a2436 0%, #141c2a 100%);
+    linear-gradient(180deg, #1a2436 0%, #1a2436 52%, #241a32 52%, #1e1628 100%);
   background-size: 20px 20px, 20px 20px, 100% 100%;
+}
+.iso-dev-floor-zone {
+  position: absolute;
+  top: 4%;
+  left: 4%;
+  right: 4%;
+  height: 46%;
+  transform: translateZ(3px);
+}
+.iso-social-floor-zone {
+  position: absolute;
+  bottom: 4%;
+  left: 4%;
+  right: 4%;
+  height: 42%;
+  transform: translateZ(3px);
+}
+.iso-dev-partition {
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  top: 50%;
+  height: 3px;
+  transform: translateZ(5px);
+  background: linear-gradient(90deg, transparent, #64748b 12%, #94a3b8 50%, #64748b 88%, transparent);
+  box-shadow: 0 0 10px rgba(148, 163, 184, 0.35);
+}
+.iso-zone-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(226, 232, 240, 0.85);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  z-index: 2;
+}
+.iso-zone-social {
+  color: rgba(233, 213, 255, 0.92);
 }
 .iso-room-coffee .iso-room-floor {
   background: linear-gradient(145deg, #2a2018 0%, #1a1410 100%);
@@ -766,11 +808,20 @@ nav { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
 /* Dev floor desks */
 .iso-dev-desks {
   position: absolute;
-  inset: 8% 6%;
+  inset: 14% 4% 4%;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
   gap: 4px;
+  transform: translateZ(4px);
+}
+.iso-social-desks {
+  position: absolute;
+  inset: 14% 8% 4%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 6px;
   transform: translateZ(4px);
 }
 .iso-desk {
@@ -822,6 +873,16 @@ nav { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
   background: linear-gradient(180deg, #1e40af, #0ea5e9);
   opacity: 0.7;
   border-radius: 1px;
+}
+.iso-desk-social .iso-desk-monitor {
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.55);
+}
+.iso-desk-social .iso-desk-monitor::after {
+  background: linear-gradient(180deg, #7c3aed, #c084fc);
+}
+.iso-desk-social .iso-desk-surface {
+  background: linear-gradient(180deg, #4a3d6a, #352a48);
+  border-color: #6b4f8a;
 }
 .iso-desk-keyboard {
   position: absolute;
@@ -954,6 +1015,7 @@ nav { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; }
 .iso-pill-meeting { top: 36%; left: 3%; }
 .iso-pill-entrance { bottom: 14%; left: 3%; }
 .iso-pill-dev { top: 6%; left: 42%; }
+.iso-pill-social { top: 52%; left: 42%; color: #e9d5ff; border-color: rgba(168, 85, 247, 0.45); }
 .iso-pill-coffee { top: 6%; right: 6%; }
 .iso-pill-calls { bottom: 14%; right: 6%; }
 
@@ -1921,20 +1983,20 @@ form input:focus, form textarea:focus {
   transition: background 1.2s ease;
 }
 .office-floor-3d-mode.office-time-night {
-  background: radial-gradient(ellipse 85% 65% at 50% 12%, #1a2844 0%, #040810 70%);
+  background: radial-gradient(ellipse 90% 70% at 50% 10%, #3a5078 0%, #1a2844 55%, #121c30 100%);
 }
 .office-floor-3d-mode.office-time-morning {
-  background: radial-gradient(ellipse 90% 75% at 50% 8%, #d4eef9 0%, #8ec5e8 65%);
+  background: radial-gradient(ellipse 90% 75% at 50% 8%, #e0f4fc 0%, #9ecde8 65%);
 }
 .office-floor-3d-mode.office-time-noon {
-  background: radial-gradient(ellipse 90% 75% at 50% 8%, #a8daf2 0%, #6eb8e0 65%);
+  background: radial-gradient(ellipse 90% 75% at 50% 8%, #c0e8f8 0%, #7ec0e0 65%);
 }
 .office-floor-3d-mode.office-time-evening {
-  background: radial-gradient(ellipse 85% 65% at 50% 15%, #9a6a7a 0%, #3d3250 70%);
+  background: radial-gradient(ellipse 90% 70% at 50% 12%, #b890a0 0%, #5a4868 70%);
 }
 
 .office-floor-iso-mode.office-time-night {
-  background: linear-gradient(180deg, #070b10 0%, #060910 100%);
+  background: linear-gradient(180deg, #1a2844 0%, #121c30 100%);
 }
 .office-floor-iso-mode.office-time-morning {
   background: linear-gradient(180deg, #b8dff2 0%, #7eb8d8 100%);

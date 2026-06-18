@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
 
-    ceo_name: str = "CEO"
+    ceo_name: str = "Meet Suthar"
     ceo_email: str = "ceo@aicompany.com"
     ceo_login_email: str = "smeet4454@gmail.com"
     ceo_login_password: str = "1234"

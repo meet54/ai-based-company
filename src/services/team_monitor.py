@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from src.agents.team import TEAM_ROSTER
+from src.agents.team import canonical_office_roster
 from src.database.state_store import team_live_store
 from src.models.schemas import Project
 from src.services.office_hours import closed_status_message, is_office_open
@@ -122,7 +122,7 @@ class TeamMonitor:
         live_by_name = team_live_store.load_all()
         message = closed_status_message()
         roster = []
-        for member in TEAM_ROSTER:
+        for member in canonical_office_roster():
             live = live_by_name.get(member.name, {})
             roster.append({
                 "id": member.id,
@@ -154,7 +154,7 @@ class TeamMonitor:
         live_by_name = team_live_store.load_all()
         roster = []
         working_count = 0
-        for member in TEAM_ROSTER:
+        for member in canonical_office_roster():
             live = live_by_name.get(member.name, {})
             log = activity_by_agent.get(member.name)
             status = live.get("status", "idle")

@@ -5,6 +5,10 @@ const STAGE_LABELS = {
   ceo_approval: 'CEO Approval',
   project_kickoff: 'Kickoff',
   development: 'Development',
+  content_strategy: 'Content Strategy',
+  content_creation: 'Create Posts & Reels',
+  client_content_approval: 'Client Content Approval',
+  social_publish: 'Publish to Pages',
   team_leader_review: 'Team Review',
   qa_testing: 'QA Testing',
   client_handover: 'Handover',
@@ -14,29 +18,46 @@ const STAGE_LABELS = {
 
 const STAGE_AGENTS = {
   lead_generation: 'Marketing + Sales',
-  requirement_gathering: 'Sales + Business Analyst',
-  quotation: 'Finance + BA',
+  requirement_gathering: 'Sales + BA / Analyst',
+  quotation: 'Finance + Analyst',
   ceo_approval: 'YOU (CEO)',
-  project_kickoff: 'PM + HR',
+  project_kickoff: 'PM or Social Lead + HR',
   development: 'Frontend + Backend + Full-Stack Devs',
+  content_strategy: 'Social Analyst + Team Leader',
+  content_creation: 'Social Executive + Graphic Designer',
+  client_content_approval: 'CLIENT',
+  social_publish: 'Social Executive → Live',
   team_leader_review: 'Project Manager',
   qa_testing: 'QA Tester',
-  client_handover: 'Client Success + Sales',
+  client_handover: 'Client Success',
   payment_collection: 'Finance → Your Account',
-  project_closed: 'Project Manager',
+  project_closed: 'PM / Social Lead',
 };
 
+const SOCIAL_WORKFLOW_DETAILS = [
+  { title: 'Find Clients', desc: 'Marketing finds brands that need social presence. Sales qualifies campaign goals.', agents: 'Ayushi, Pritesh' },
+  { title: 'Campaign Brief', desc: 'Capture platforms, brand voice, post frequency, ad budget, and reel themes.', agents: 'Pritesh, Jatin (Analyst)' },
+  { title: 'Quotation', desc: 'Finance quotes the social package tier (Starter / Growth / Premium).', agents: 'Dhruv (Finance)' },
+  { title: 'CEO Approval', desc: 'You approve the campaign quotation before creative work starts.', agents: 'Meet (CEO)' },
+  { title: 'Team Kickoff', desc: 'Social team leader assigns executive, analyst, coordinator, and designers.', agents: 'Nayani (Lead), Monali (HR)' },
+  { title: 'Content Strategy', desc: 'Analyst and coordinator build calendar, hashtags, audience targeting, and ad objectives.', agents: 'Jatin, Nayani, Rutvi' },
+  { title: 'Create Content', desc: 'Nittal writes posts/ads; Harshil & Margie design visuals; Rutvi coordinates delivery.', agents: 'Nittal, Harshil, Margie, Rutvi' },
+  { title: 'Client Approval', desc: 'Client reviews posts, ads, and reels. Revisions if rejected.', agents: 'Client' },
+  { title: 'Publish', desc: 'Approved content goes live on Instagram, Facebook, LinkedIn.', agents: 'Nittal (Executive)' },
+  { title: 'Handover & Payment', desc: 'Campaign report delivered; invoice collected to CEO account.', agents: 'Daxesh, Dhruv' },
+];
+
 const WORKFLOW_DETAILS = [
-  { title: 'Find Clients', desc: 'Marketing runs campaigns. Sales qualifies inbound leads and schedules discovery calls.', agents: 'Priya (Marketing), Alex (Sales)' },
-  { title: 'Gather Requirements', desc: 'Sales talks with the client. Business Analyst creates formal specs and recommends tech stack.', agents: 'Alex (Sales), Sam (BA)' },
-  { title: 'Generate Quotation', desc: 'Finance creates itemized quote with hours, rates, tax, and payment terms.', agents: 'Nina (Finance)' },
-  { title: 'CEO Approval', desc: 'You review and approve/reject the quotation before work begins.', agents: 'YOU' },
-  { title: 'Assign Team & Kickoff', desc: 'PM plans sprints. HR assigns the right developers based on skills.', agents: 'Morgan (PM), Jordan (HR)' },
-  { title: 'Development', desc: 'Developers build the website/software per requirements.', agents: 'Riya, David, Elena' },
-  { title: 'Team Leader Review', desc: 'PM cross-checks code quality, completeness, and requirement alignment.', agents: 'Morgan (PM)' },
-  { title: 'QA Testing', desc: 'Tester runs test cases, finds bugs, and gives pass/fail verdict.', agents: 'Chris (QA)' },
-  { title: 'Client Handover', desc: 'Deliver source code, docs, training. Get client sign-off.', agents: 'Taylor (Client Success)' },
-  { title: 'Payment Collection', desc: 'Invoice sent. Payment deposited to your CEO business account.', agents: 'Nina (Finance)' },
+  { title: 'Find Clients', desc: 'Marketing runs campaigns. Sales qualifies inbound leads and schedules discovery calls.', agents: 'Ayushi (Marketing), Pritesh (Sales)' },
+  { title: 'Gather Requirements', desc: 'Sales talks with the client. Business Analyst creates formal specs and recommends tech stack.', agents: 'Pritesh (Sales), Dhruv (BA)' },
+  { title: 'Generate Quotation', desc: 'Finance creates itemized quote with hours, rates, tax, and payment terms.', agents: 'Dhruv (Finance)' },
+  { title: 'CEO Approval', desc: 'You review and approve/reject the quotation before work begins.', agents: 'Meet (CEO)' },
+  { title: 'Assign Team & Kickoff', desc: 'PM plans sprints. HR assigns the right developers based on skills.', agents: 'Manan (PM), Monali (HR)' },
+  { title: 'Development', desc: 'Developers build the website/software per requirements.', agents: 'Daxesh, Manan Desai' },
+  { title: 'Team Leader Review', desc: 'PM cross-checks code quality, completeness, and requirement alignment.', agents: 'Manan (PM)' },
+  { title: 'QA Testing', desc: 'Tester runs test cases, finds bugs, and gives pass/fail verdict.', agents: 'Manan (QA)' },
+  { title: 'Client Handover', desc: 'Deliver source code, docs, training. Get client sign-off.', agents: 'Daxesh (Client Success)' },
+  { title: 'Payment Collection', desc: 'Invoice sent. Payment deposited to your CEO business account.', agents: 'Dhruv (Finance)' },
 ];
 
 let company = {};
@@ -45,10 +66,12 @@ let monitorInterval = null;
 let leadsPollInterval = null;
 
 const ROLE_EMOJI = {
-  sales: '💼', marketing: '📣', hr: '🧑‍💼', business_analyst: '📋',
+  ceo: '👔', sales: '💼', marketing: '📣', hr: '🧑‍💼', business_analyst: '📋',
   project_manager: '📌', frontend_developer: '🎨', backend_developer: '⚙️',
   fullstack_developer: '🔧', mobile_developer: '📱', app_developer: '📲',
   qa_tester: '🔍', finance: '💰', client_success: '🤝',
+  social_team_leader: '📣', social_media_executive: '📱', social_media_analyst: '📊',
+  social_media_coordinator: '🔗', graphic_designer: '🎨', graphic_designer_2: '🖌️',
 };
 
 function isProjectDone(p) {
@@ -109,7 +132,7 @@ function renderProjectCard(p, { compact = false } = {}) {
     <div class="${cardClass}" onclick="openProject(${p.id})" style="${compact ? 'margin-bottom:0.75rem' : ''}">
       ${showDoneAlert ? '<span class="done-ribbon">✓ DONE</span>' : ''}
       ${previewed ? '<span class="viewed-badge">✓ Viewed</span>' : ''}
-      <h4>${escapeHtml(p.title)}</h4>
+      <h4>${escapeHtml(p.title)}${p.is_social ? ' <span class="stage-badge active" style="font-size:0.65rem">📱 Social</span>' : ''}</h4>
       <div class="client">${escapeHtml(p.client_company)} — ${compact ? escapeHtml(p.client_name) : escapeHtml(p.client_email)}</div>
       <div class="project-card-footer">
         <span class="stage-badge ${stageBadgeClass(p.current_stage)}">${formatStage(p.current_stage)}</span>
@@ -196,6 +219,7 @@ function formatTime(iso) {
 
 function stageBadgeClass(stage) {
   if (stage === 'ceo_approval') return 'ceo';
+  if (stage === 'client_content_approval') return 'ceo';
   if (stage === 'project_closed') return 'done';
   return 'active';
 }
@@ -697,7 +721,9 @@ function renderWorkflow() {
     return `<div class="${cls}"><div class="num">${i + 1}</div><div class="label">${formatStage(s)}</div></div>`;
   }).join('');
 
-  document.getElementById('workflow-detail').innerHTML = WORKFLOW_DETAILS.map((d, i) => `
+  document.getElementById('workflow-detail').innerHTML = `
+    <h3 style="margin:1rem 0 0.5rem">💻 Software Projects</h3>
+    ${WORKFLOW_DETAILS.map((d, i) => `
     <div class="step-detail">
       <div class="step-num">${i + 1}</div>
       <div>
@@ -706,7 +732,19 @@ function renderWorkflow() {
         <div class="agents">👥 ${d.agents}</div>
       </div>
     </div>
-  `).join('');
+  `).join('')}
+    <h3 style="margin:1.5rem 0 0.5rem">📱 Social Media Campaigns</h3>
+    ${SOCIAL_WORKFLOW_DETAILS.map((d, i) => `
+    <div class="step-detail">
+      <div class="step-num">${i + 1}</div>
+      <div>
+        <h4>${d.title}</h4>
+        <p>${d.desc}</p>
+        <div class="agents">👥 ${d.agents}</div>
+      </div>
+    </div>
+  `).join('')}
+  `;
 }
 
 async function loadActivity() {
@@ -739,14 +777,22 @@ async function openProject(id) {
 
   let actions = '';
   if (p.preview_available) {
-    actions = previewButton(id, p.title, previewed ? 'View Again' : 'Live Preview', 'btn-success-inline');
-    actions += `<button type="button" class="btn btn-outline btn-sm" onclick="rebuildSite(${id})">🔨 Rebuild from Requirements</button>`;
+    const previewLabel = p.is_social ? (previewed ? 'View Campaign' : 'Preview Posts & Reels') : (previewed ? 'View Again' : 'Live Preview');
+    actions = previewButton(id, p.title, previewLabel, 'btn-success-inline');
+    if (!p.is_social) {
+      actions += `<button type="button" class="btn btn-outline btn-sm" onclick="rebuildSite(${id})">🔨 Rebuild from Requirements</button>`;
+    }
   }
   if (p.current_stage === 'ceo_approval') {
     actions += `
       <button class="btn btn-success" onclick="ceoApprove(${id}, true)">✓ Approve Quotation</button>
       <button class="btn btn-danger" onclick="ceoApprove(${id}, false)">✗ Reject</button>
       <button class="btn btn-outline" onclick="requoteProject(${id})">💰 Recalculate Quote</button>
+    `;
+  } else if (p.current_stage === 'client_content_approval') {
+    actions += `
+      <button class="btn btn-success" onclick="clientApprove(${id}, true)">✓ Client Approves Content</button>
+      <button class="btn btn-danger" onclick="clientApprove(${id}, false)">✗ Request Revisions</button>
     `;
   } else if (!done) {
     actions += `
@@ -792,12 +838,17 @@ async function openProject(id) {
 
   let previewHtml = '';
   if (p.preview_available && !previewed) {
+    const ctaTitle = p.is_social ? '✓ Campaign Ready for Review' : '✓ Project Delivered';
+    const ctaText = p.is_social
+      ? 'Posts, ads, and reels are ready. Preview the campaign before client approval.'
+      : 'Your AI team built this project. Click below to see how it looks live.';
+    const btnLabel = p.is_social ? 'Preview Social Campaign' : 'Open Live Preview';
     previewHtml = `
       <div class="detail-section">
         <div class="live-preview-cta">
-          <h3>✓ Project Delivered</h3>
-          <p>Your AI team built this project. Click below to see how it looks live.</p>
-          ${previewButton(id, p.title, 'Open Live Preview', 'preview-btn-lg')}
+          <h3>${ctaTitle}</h3>
+          <p>${ctaText}</p>
+          ${previewButton(id, p.title, btnLabel, 'preview-btn-lg')}
         </div>
       </div>
     `;
@@ -894,7 +945,9 @@ async function createProject(e) {
     const result = await api('/projects', { method: 'POST', body: JSON.stringify(body) });
     showToast(result.status === 'paused_at_ceo_approval'
       ? 'Pipeline paused — quotation needs your approval!'
-      : 'Project created!', 'success');
+      : result.status === 'paused_at_client_approval'
+        ? 'Content ready — awaiting client approval!'
+        : 'Project created!', 'success');
     form.reset();
     await loadProjects();
     if (result.project) openProject(result.project.id);
@@ -912,6 +965,33 @@ async function simulateLead() {
     if (result.project) openProject(result.project.id);
   } catch (err) {
     showToast(err.message);
+  }
+}
+
+async function simulateSocial() {
+  try {
+    showToast('Starting social media campaign demo...', 'success');
+    const result = await api('/simulate-social', { method: 'POST', body: '{}' });
+    showToast(result.message, 'success');
+    await loadDashboard();
+    if (result.project) openProject(result.project.id);
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+async function clientApprove(id, approved) {
+  const notes = approved ? 'Looks great — approved!' : prompt('Revision notes for the team:') || '';
+  try {
+    const result = await api(`/projects/${id}/client-approve`, {
+      method: 'POST',
+      body: JSON.stringify({ approved, notes }),
+    });
+    showToast(approved ? 'Client approved — publishing content!' : 'Sent back for revisions', approved ? 'success' : '');
+    openProject(id);
+    loadProjects();
+  } catch (err) {
+    showToast(err.message, 'danger');
   }
 }
 

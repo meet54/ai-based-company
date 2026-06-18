@@ -3,6 +3,8 @@ import re
 from datetime import datetime, timedelta
 
 from src.config import settings
+from src.agents.team import get_member_by_role
+from src.models.schemas import AgentRole
 
 
 class LLMService:
@@ -238,12 +240,15 @@ class LLMService:
             )
 
         if "HR" in role_hint:
+            fe = get_member_by_role(AgentRole.FRONTEND_DEV)
+            be = get_member_by_role(AgentRole.BACKEND_DEV)
+            fs = get_member_by_role(AgentRole.FULLSTACK_DEV)
             return (
                 f"## Team Assignment — {project}\n\n"
                 f"**Recommended Team:**\n"
-                f"- Riya Patel (Frontend Developer) — UI components, responsive design\n"
-                f"- David Kim (Backend Developer) — APIs, database, authentication\n"
-                f"- Elena Vasquez (Full-Stack) — Integration and deployment support\n\n"
+                f"- {fe.name} (Frontend Developer) — UI components, responsive design\n"
+                f"- {be.name} (Backend Developer) — APIs, database, authentication\n"
+                f"- {fs.name} (Full-Stack) — Integration and deployment support\n\n"
                 f"All team members are available. Sprint capacity: 2-week sprints.\n"
                 f"HR note: Team skills match project requirements."
             )
@@ -263,6 +268,9 @@ class LLMService:
             )
 
         if "Project Manager" in role_hint:
+            fe = get_member_by_role(AgentRole.FRONTEND_DEV)
+            be = get_member_by_role(AgentRole.BACKEND_DEV)
+            fs = get_member_by_role(AgentRole.FULLSTACK_DEV)
             return (
                 f"## Project Kickoff — {project}\n\n"
                 f"**Sprint Plan:**\n"
@@ -270,7 +278,7 @@ class LLMService:
                 f"- Sprint 2 (Week 3–4): Dashboard, CRUD features\n"
                 f"- Sprint 3 (Week 5–6): Admin panel, integrations\n"
                 f"- Sprint 4 (Week 7–8): Polish, testing prep\n\n"
-                f"**Assigned Developers:** Riya Patel, David Kim, Elena Vasquez\n"
+                f"**Assigned Developers:** {fe.name}, {be.name}, {fs.name}\n"
                 f"**Daily standups:** 10 AM | **Demo:** Every Friday"
             )
 
@@ -323,6 +331,61 @@ class LLMService:
                 f"1. [LOW] Button alignment on mobile — Fixed\n"
                 f"2. [LOW] Tooltip overflow on small screens — Fixed\n\n"
                 f"**Verdict: PASSED — Ready for client handover**"
+            )
+
+        if "Social Media Analyst" in role_hint or "Social Analyst" in role_hint:
+            return (
+                f"## Social Media Strategy — {project}\n\n"
+                f"**Platforms:** Instagram, Facebook, LinkedIn\n"
+                f"**Audience:** Business owners 25–45, local + digital\n"
+                f"**Content calendar:** 4 feed posts/week, 2 reels/week\n"
+                f"**Hashtags:** #BrandGrowth #SmallBusiness + niche tags\n"
+                f"**Ad objective:** Lead generation — landing page clicks\n"
+                f"**KPIs:** Reach, engagement rate, cost per lead"
+            )
+
+        if "Social Media Team Leader" in role_hint or "Team Leader" in role_hint:
+            return (
+                f"## Campaign Review — {project}\n\n"
+                f"**Internal QA:** All captions on-brand, CTAs clear, visuals aligned\n"
+                f"**Reel hooks:** Strong openers on both scripts\n"
+                f"**Recommendation:** Submit package to client for approval\n"
+                f"**Notes:** Keep hashtag set consistent across posts"
+            )
+
+        if "Social Media Executive" in role_hint:
+            if "publish" in user_message.lower():
+                return (
+                    f"## Published — {project}\n\n"
+                    f"**Instagram:** 4 posts scheduled + 2 reels queued\n"
+                    f"**Facebook:** Ads live in Ads Manager\n"
+                    f"**LinkedIn:** 2 posts published\n"
+                    f"**Status:** All approved assets are live on client pages."
+                )
+            return (
+                f"## Social Content Package — {project}\n\n"
+                f"**Posts (4):** Captions, hashtags, and CTAs ready\n"
+                f"**Ads (2):** Headlines + body + audience targeting notes\n"
+                f"**Reels (2):** 30s and 60s scripts with scene breakdowns\n"
+                f"**Next:** Send to client for approval before publishing"
+            )
+
+        if "Social Media Coordinator" in role_hint:
+            return (
+                f"## Campaign Coordination — {project}\n\n"
+                f"**Schedule:** Posts Mon/Wed/Fri, reels Tue/Sat\n"
+                f"**Workflow:** Copy → design → internal review → client approval → publish\n"
+                f"**Status:** All deliverables on track for client review this week\n"
+                f"**Platforms:** Instagram, Facebook, LinkedIn aligned"
+            )
+
+        if "Graphic Designer" in role_hint or "Margie Shah" in system_prompt:
+            return (
+                f"## Visual Creative Brief — {project}\n\n"
+                f"**Brand palette:** Primary indigo, accent coral, neutral backgrounds\n"
+                f"**Post templates:** 1080×1080 feed, bold typography, product hero\n"
+                f"**Ad creatives:** 1200×628 landscape + 1080×1920 story format\n"
+                f"**Reel frames:** Vertical safe zones, logo watermark bottom-right"
             )
 
         if "Client Success" in role_hint:

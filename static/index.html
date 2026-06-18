@@ -54,6 +54,7 @@
           </div>
           <div class="header-actions">
             <button class="btn btn-primary" onclick="simulateLead()">+ Demo Client</button>
+            <button class="btn btn-outline" onclick="simulateSocial()">📱 Demo Social Campaign</button>
           </div>
         </header>
 
@@ -217,6 +218,12 @@
             <label>Contact Name<input name="client_name" required placeholder="Jane Doe" /></label>
             <label>Contact Email<input name="client_email" type="email" required placeholder="jane@acme.com" /></label>
             <label>Project Description<textarea name="description" required rows="3" placeholder="What does the client need?"></textarea></label>
+            <label>Project Type
+              <select name="service_category">
+                <option value="software">Software / Website</option>
+                <option value="social_media">Social Media Campaign</option>
+              </select>
+            </label>
             <button type="submit" class="btn btn-primary full-width">Start AI Pipeline</button>
           </form>
         </div>

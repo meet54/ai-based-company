@@ -3,7 +3,7 @@
 import asyncio
 import random
 
-from src.agents.team import TEAM_ROSTER
+from src.agents.team import TEAM_ROSTER, is_social_team_member
 from src.database.repository import db
 from src.models.schemas import ActivityLog, AgentRole
 from src.services.office_hours import is_office_open
@@ -106,6 +106,8 @@ class IdleWorker:
             if live and live.get("status") == "working":
                 continue
             if member.role == AgentRole.CEO:
+                continue
+            if is_social_team_member(member.name):
                 continue
             return member
         return None

@@ -60,6 +60,9 @@
             <option value="ecommerce_starter">E-Commerce Starter — from $1,200</option>
             <option value="web_application">Web Application — from $2,500</option>
             <option value="mobile_app">Mobile App — from $3,500</option>
+            <option value="social_media_starter">Social Media Starter — from $450</option>
+            <option value="social_media_growth">Social Media Growth — from $850</option>
+            <option value="social_media_premium">Social Media Premium — from $1,500</option>
             <option value="custom_software">Fully Custom Software — from $4,500</option>
           </select>
         </label>
@@ -105,6 +108,7 @@
         </label>
 
         <input type="hidden" name="project_type" id="project_type" value="website" />
+        <input type="hidden" name="service_category" id="service_category" value="software" />
 
         <button type="submit" class="submit-btn" id="submit-btn">
           Get My Quotation
@@ -151,7 +155,17 @@
       web_application: 'webapp',
       mobile_app: 'mobile',
       custom_software: 'custom',
+      social_media_starter: 'social_media',
+      social_media_growth: 'social_media',
+      social_media_premium: 'social_media',
     };
+
+    function syncProjectTypeFromTier(tier) {
+      document.getElementById('project_type').value = TIER_TO_TYPE[tier] || 'website';
+      const cat = tier.startsWith('social_media') ? 'social_media' : 'software';
+      const catEl = document.getElementById('service_category');
+      if (catEl) catEl.value = cat;
+    }
 
     async function loadCompany() {
       try {
@@ -187,6 +201,7 @@
             const sel = document.getElementById('service_tier');
             sel.value = tier;
             document.getElementById('project_type').value = TIER_TO_TYPE[tier] || 'website';
+            syncProjectTypeFromTier(tier);
             sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
           });
         });
@@ -196,7 +211,7 @@
     }
 
     document.getElementById('service_tier').addEventListener('change', (e) => {
-      document.getElementById('project_type').value = TIER_TO_TYPE[e.target.value] || 'website';
+      syncProjectTypeFromTier(e.target.value);
     });
 
     document.getElementById('inquiry-form').addEventListener('submit', async (e) => {

@@ -19,11 +19,23 @@ const OfficeSimulator = (() => {
   const POIS = {
     entrance: { x: 11, y: 90 },
     coffee: { x: 86, y: 18 },
-    lounge: { x: 11, y: 48 },
+    meeting_room: { x: 10, y: 47 },
     hallway: { x: 11, y: 48 },
   };
 
-  const DESKS = buildDeskGrid();
+  const SOCIAL_ROLES = new Set([
+    'social_team_leader', 'social_media_executive', 'social_media_analyst',
+    'social_media_coordinator', 'graphic_designer', 'graphic_designer_2',
+  ]);
+
+  const SOCIAL_TEAM_NAMES = new Set([
+    'Nayani Gour', 'Nittal Gamit', 'Jatin Panchal',
+    'Rutvi Parmar', 'Harshil Pathak', 'Margie Shah',
+  ]);
+
+  const DEV_DESKS = buildDevDeskGrid();
+  const SOCIAL_DESKS = buildSocialDeskGrid();
+  const DESKS = [...DEV_DESKS, ...SOCIAL_DESKS];
 
   const COFFEE_SLOTS = [
     { x: 78, y: 12 }, { x: 86, y: 16 }, { x: 92, y: 12 }, { x: 82, y: 24 }, { x: 90, y: 28 },
@@ -49,26 +61,54 @@ const OfficeSimulator = (() => {
     console: [{ x: 10, y: 10 }, { x: 14, y: 10 }, { x: 12, y: 14 }],
   };
 
-  const LOUNGE_SLOTS = [
-    { x: 8, y: 42 }, { x: 14, y: 46 }, { x: 10, y: 52 }, { x: 16, y: 54 },
+  const MEETING_SLOTS = [
+    { x: 4.2, y: 47.2 }, { x: 15.8, y: 47.2 }, { x: 10, y: 43.3 },
+    { x: 10, y: 51.1 }, { x: 6.25, y: 44.2 }, { x: 13.75, y: 50.3 },
+  ];
+
+  const SOCIAL_MEETING_SLOTS = [
+    { x: 36, y: 56 }, { x: 50, y: 56 }, { x: 44, y: 64 },
+    { x: 38, y: 68 }, { x: 52, y: 68 },
   ];
 
   const HALLWAY_SLOTS = [
     { x: 38, y: 82 }, { x: 50, y: 86 }, { x: 62, y: 82 },
   ];
 
-  function buildDeskGrid() {
-    const rows = ['A', 'B', 'C', 'D', 'E'];
-    const cols = [1, 2, 3, 4, 5];
-    const startX = 32;
-    const startY = 22;
-    const gapX = 7.2;
-    const gapY = 11.5;
+  function buildDevDeskGrid() {
+    const rows = ['A', 'B', 'C'];
+    const cols = [1, 2, 3, 4];
+    const startX = 30;
+    const startY = 14;
+    const gapX = 8;
+    const gapY = 10;
+    const desks = [];
+    rows.forEach((row) => {
+      cols.forEach((col, ci) => {
+        desks.push({
+          id: `${row}${col}`,
+          zone: 'desk',
+          x: startX + ci * gapX,
+          y: startY + (row.charCodeAt(0) - 65) * gapY,
+        });
+      });
+    });
+    return desks;
+  }
+
+  function buildSocialDeskGrid() {
+    const rows = ['S1', 'S2'];
+    const cols = [1, 2, 3];
+    const startX = 34;
+    const startY = 62;
+    const gapX = 10;
+    const gapY = 10;
     const desks = [];
     rows.forEach((row, ri) => {
       cols.forEach((col, ci) => {
         desks.push({
           id: `${row}${col}`,
+          zone: 'social_floor',
           x: startX + ci * gapX,
           y: startY + ri * gapY,
         });
@@ -77,14 +117,87 @@ const OfficeSimulator = (() => {
     return desks;
   }
 
-  function deskIndexFor(memberName) {
-    const sorted = [...members].sort((a, b) => a.name.localeCompare(b.name));
+  function isSocialRole(role) {
+    return SOCIAL_ROLES.has(role);
+  }
+
+  function dedupeMembers(list) {
+    const byName = new Map();
+    for (const m of list || []) {
+      const prev = byName.get(m.name);
+      if (!prev) {
+        byName.set(m.name, m);
+        continue;
+      }
+      if (SOCIAL_TEAM_NAMES.has(m.name)) {
+        if (isSocialRole(m.role) && !isSocialRole(prev.role)) {
+          byName.set(m.name, m);
+        }
+        continue;
+      }
+      if (m.status === 'working' && prev.status !== 'working') {
+        byName.set(m.name, m);
+      }
+    }
+    return [...byName.values()];
+  }
+
+  function memberByName(memberName) {
+    const matches = members.filter((m) => m.name === memberName);
+    if (matches.length <= 1) return matches[0];
+    if (SOCIAL_TEAM_NAMES.has(memberName)) {
+      return matches.find((m) => isSocialRole(m.role)) || matches[0];
+    }
+    return matches.find((m) => m.status === 'working') || matches[0];
+  }
+
+  function isSocialMember(member) {
+    return Boolean(
+      member && (SOCIAL_TEAM_NAMES.has(member.name) || isSocialRole(member.role)),
+    );
+  }
+
+  function uniqueMembers(filterFn) {
+    const seen = new Set();
+    return members.filter((m) => {
+      if (!filterFn(m) || seen.has(m.name)) return false;
+      seen.add(m.name);
+      return true;
+    });
+  }
+
+  function devDeskIndexFor(memberName) {
+    const sorted = uniqueMembers((m) => !isSocialMember(m))
+      .sort((a, b) => a.name.localeCompare(b.name));
     const index = sorted.findIndex((m) => m.name === memberName);
     return index >= 0 ? index : 0;
   }
 
+  function socialDeskIndexFor(memberName) {
+    const sorted = uniqueMembers((m) => isSocialMember(m))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const index = sorted.findIndex((m) => m.name === memberName);
+    return index >= 0 ? index : 0;
+  }
+
+  function deskIndexFor(memberName) {
+    const member = memberByName(memberName);
+    if (isSocialMember(member)) return socialDeskIndexFor(memberName);
+    return devDeskIndexFor(memberName);
+  }
+
   function deskForMember(memberName) {
-    return DESKS[deskIndexFor(memberName) % DESKS.length];
+    const member = memberByName(memberName);
+    if (isSocialMember(member)) {
+      const idx = socialDeskIndexFor(memberName);
+      return SOCIAL_DESKS[idx >= 0 ? idx % SOCIAL_DESKS.length : 0];
+    }
+    const idx = devDeskIndexFor(memberName);
+    return DEV_DESKS[idx >= 0 ? idx % DEV_DESKS.length : 0];
+  }
+
+  function defaultDeskZone(member) {
+    return isSocialMember(member) ? 'social_floor' : 'desk';
   }
 
   function slotFor(agent, slots) {
@@ -130,6 +243,8 @@ const OfficeSimulator = (() => {
     project_manager: '📌', frontend_developer: '🎨', backend_developer: '⚙️',
     fullstack_developer: '🔧', mobile_developer: '📱', app_developer: '📲',
     qa_tester: '🔍', finance: '💰', client_success: '🤝',
+    social_team_leader: '📣', social_media_executive: '📱', social_media_analyst: '📊',
+    social_media_coordinator: '🔗', graphic_designer: '🎨', graphic_designer_2: '🖌️',
   };
 
   let container = null;
@@ -378,7 +493,7 @@ const OfficeSimulator = (() => {
         task: member.current_task || 'Team Q&A',
         detail: member.work_details || (member.conversation_partner
           ? `Talking with ${member.conversation_partner}`
-          : 'In the lounge'),
+          : 'In the meeting room'),
         working: false,
       };
     }
@@ -649,8 +764,8 @@ const OfficeSimulator = (() => {
   }
 
   function buildIsometricFloorHtml() {
-    const deskHtml = DESKS.map((d) => `
-      <div class="iso-desk" data-desk-id="${d.id}">
+    const deskHtmlFor = (desks, social = false) => desks.map((d) => `
+      <div class="iso-desk${social ? ' iso-desk-social' : ''}" data-desk-id="${d.id}">
         <div class="iso-desk-chair"></div>
         <div class="iso-desk-surface">
           <div class="iso-desk-monitor"></div>
@@ -689,7 +804,15 @@ const OfficeSimulator = (() => {
               </div>
               <div class="iso-room iso-room-dev">
                 <div class="iso-room-floor"></div>
-                <div class="iso-dev-desks">${deskHtml}</div>
+                <div class="iso-dev-floor-zone">
+                  <span class="iso-zone-label iso-zone-dev">💻 Dev Floor</span>
+                  <div class="iso-dev-desks">${deskHtmlFor(DEV_DESKS)}</div>
+                </div>
+                <div class="iso-dev-partition" aria-hidden="true"></div>
+                <div class="iso-social-floor-zone">
+                  <span class="iso-zone-label iso-zone-social">📱 Social Media Dept</span>
+                  <div class="iso-social-desks">${deskHtmlFor(SOCIAL_DESKS, true)}</div>
+                </div>
               </div>
               <div class="iso-room iso-room-coffee">
                 <div class="iso-room-floor"></div>
@@ -713,6 +836,7 @@ const OfficeSimulator = (() => {
             <span class="iso-pill iso-pill-meeting">🤝 Meeting Room</span>
             <span class="iso-pill iso-pill-entrance">🚪 Main Entrance</span>
             <span class="iso-pill iso-pill-dev">💻 Dev Floor</span>
+            <span class="iso-pill iso-pill-social">📱 Social Media Dept</span>
             <span class="iso-pill iso-pill-coffee">☕ Coffee Break Room</span>
             <span class="iso-pill iso-pill-calls">📞 Call Booths</span>
           </div>
@@ -745,7 +869,7 @@ const OfficeSimulator = (() => {
       wrapEl.innerHTML = '';
       if (scene3d) scene3d.dispose();
       scene3d = new mod.Office3DScene(wrapEl);
-      scene3d.buildDesks(DESKS);
+      scene3d.buildDesks(DEV_DESKS, SOCIAL_DESKS);
       scene3d.onMemberClick = (name) => focusMember(name);
       scene3d.onPovExit = () => clearMemberPov();
       scene3d.onTimeOfDayChange = (period) => {
@@ -883,12 +1007,16 @@ const OfficeSimulator = (() => {
   }
 
   function zonePosition(zone, agent, member) {
-    if (member.status === 'working' || zone === 'desk') {
-      const querying = member.office_activity === 'query';
+    if (member.office_activity === 'query' || zone === 'meeting_room' || zone === 'lounge') {
+      const slots = isSocialMember(member) ? SOCIAL_MEETING_SLOTS : MEETING_SLOTS;
+      const slot = slotFor(agent, slots);
+      return { x: slot.x, y: slot.y, state: 'talking' };
+    }
+    if (member.status === 'working' || zone === 'desk' || zone === 'social_floor') {
       return {
         x: agent.desk.x,
         y: agent.desk.y,
-        state: member.status === 'working' ? 'working' : (querying ? 'talking' : 'idle'),
+        state: member.status === 'working' ? 'working' : 'idle',
       };
     }
     if (zone === 'coffee' || zone === 'coffee_room') {
@@ -902,10 +1030,6 @@ const OfficeSimulator = (() => {
     if (zone === 'chill_room') {
       const slot = gameSlotFor(agent, member);
       return { x: slot.x, y: slot.y, state: 'gaming' };
-    }
-    if (zone === 'lounge') {
-      const slot = slotFor(agent, LOUNGE_SLOTS);
-      return { x: slot.x, y: slot.y, state: 'talking' };
     }
     if (zone === 'hallway') {
       const slot = slotFor(agent, HALLWAY_SLOTS);
@@ -921,7 +1045,7 @@ const OfficeSimulator = (() => {
   }
 
   function resolveOfficeZone(member) {
-    if (member.status === 'working') return 'desk';
+    if (member.status === 'working') return defaultDeskZone(member);
     switch (member.office_activity) {
       case 'coffee':
         return 'coffee_room';
@@ -930,14 +1054,15 @@ const OfficeSimulator = (() => {
       case 'gaming':
         return 'chill_room';
       case 'query':
-        return 'desk';
+        return isSocialMember(member) ? 'social_floor' : 'meeting_room';
       default:
         break;
     }
-    const z = member.office_zone || 'desk';
+    const z = member.office_zone || defaultDeskZone(member);
     if (z === 'coffee') return 'coffee_room';
-    if (['coffee_room', 'phone_room', 'chill_room', 'lounge', 'hallway'].includes(z)) {
-      return 'desk';
+    if (z === 'meeting_room' && isSocialMember(member)) return 'social_floor';
+    if (['coffee_room', 'phone_room', 'chill_room', 'lounge', 'meeting_room', 'hallway'].includes(z)) {
+      return defaultDeskZone(member);
     }
     return z;
   }
@@ -961,27 +1086,31 @@ const OfficeSimulator = (() => {
         extra: 'Chill & games room',
       };
     }
-    if (member.office_activity === 'query' || zone === 'lounge' || zone === 'desk') {
+    if (member.office_activity === 'query' || zone === 'meeting_room' || zone === 'lounge') {
       if (member.office_query) {
         return {
           type: 'talk',
           message: member.office_query,
           extra: member.conversation_partner
             ? `Asking ${member.conversation_partner}`
-            : 'Team Q&A at their desk',
+            : isSocialMember(member)
+              ? 'Team Q&A in the Social Media department'
+              : 'Team Q&A in the meeting room',
         };
       }
       return {
         type: 'talk',
         message: member.current_task || 'Chatting with a teammate',
-        extra: member.conversation_partner || member.project_title || 'work',
+        extra: member.conversation_partner || member.project_title || (
+          isSocialMember(member) ? 'social campaign' : 'work'
+        ),
       };
     }
     if (zone === 'hallway') {
       const b = walkBubble(member);
       return { type: 'walk', message: b.detail };
     }
-    if (zone === 'desk' && member.status === 'working') {
+    if ((zone === 'desk' || zone === 'social_floor') && member.status === 'working') {
       const wb = workBubble(member);
       return {
         type: 'work',
@@ -1070,6 +1199,7 @@ const OfficeSimulator = (() => {
             ${officeMemberCardHtml()}
             <div class="${USE_3D_OFFICE ? 'office-3d-legend' : 'office-iso-legend'}">
               <span>💻 Dev Floor</span>
+              <span>📱 Social Media Dept</span>
               <span>☕ Coffee Break Room</span>
               <span>📞 Call Booths</span>
               <span>🎮 Gaming Room</span>
@@ -1204,7 +1334,7 @@ const OfficeSimulator = (() => {
 
   async function sync(membersData) {
     if (!container) return;
-    members = membersData || [];
+    members = dedupeMembers(membersData);
     if (!clockEl) renderFloor();
     if (scene3dReady) await scene3dReady;
     if (scene3d) {
@@ -1219,6 +1349,13 @@ const OfficeSimulator = (() => {
       document.getElementById('office-iso-floor')?.classList.remove('hidden-behind-3d');
     }
     members.forEach((m, i) => ensureAgent(m, i));
+    agents.forEach((agent) => {
+      const member = memberByName(agent.id);
+      if (member) {
+        agent.desk = deskForMember(agent.id);
+        agent.deskIndex = deskIndexFor(agent.id);
+      }
+    });
     agents.forEach((agent, name) => {
       if (!members.find(m => m.name === name)) {
         agent.el?.remove();

@@ -14,21 +14,28 @@ PM assigns developers → Devs build software → PM reviews → QA tests
 Client Success hands over → Finance collects payment → YOUR account
 ```
 
-### The 11 AI Team Members
+### The 14-Person AI Team (18 role assignments)
 
 | Role | Name | Department |
 |------|------|------------|
-| Sales Executive | Alex Rivera | Sales |
-| Marketing Manager | Priya Sharma | Marketing |
-| HR Manager | Jordan Lee | Human Resources |
-| Business Analyst | Sam Okafor | Business Analysis |
-| Project Manager | Morgan Chen | Project Management |
-| Frontend Developer | Riya Patel | Engineering |
-| Backend Developer | David Kim | Engineering |
-| Full-Stack Developer | Elena Vasquez | Engineering |
-| QA Tester | Chris Taylor | Quality Assurance |
-| Finance Manager | Nina Brooks | Finance |
-| Client Success | Taylor Wright | Client Success |
+| CEO | Meet Suthar | Executive |
+| Sales Executive | Pritesh Parmar | Sales |
+| Marketing Manager | Ayushi Rami | Marketing |
+| HR Manager | Monali Pahurkar | Human Resources |
+| Business Analyst | Dhruv Shukhadia | Business Analysis |
+| Project Manager | Manan Patel | Project Management |
+| Frontend Developer | Daxesh Bhoi | Engineering |
+| Backend Developer | Manan Desai | Engineering |
+| Full-Stack Developer | Manan Desai | Engineering |
+| QA Tester | Manan Patel | Quality Assurance |
+| Finance Manager | Dhruv Shukhadia | Finance |
+| Client Success | Daxesh Bhoi | Client Success |
+| Social Media Team Leader | Nayani Gour | Social Media |
+| Social Media Executive | Nittal Gamit | Social Media |
+| Social Media Analyst | Jatin Panchal | Social Media |
+| Social Media Coordinator | Rutvi Parmar | Social Media |
+| Graphic Designer | Harshil Pathak | Creative |
+| Graphic Designer | Margie Shah | Creative |
 
 ## Quick Start
 

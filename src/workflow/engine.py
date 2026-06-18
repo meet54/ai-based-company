@@ -3,15 +3,17 @@ import re
 from datetime import datetime
 
 from src.agents.base import get_agent
-from src.agents.prompts import STAGE_AGENTS
-from src.agents.team import TEAM_ROSTER, get_member_by_role
+from src.agents.team import get_member_by_role
 from src.config import settings
 from src.services.code_generator import code_generator
 from src.services.developer_assignment import assign_developers
 from src.services.pricing import build_quotation, classify_tier, get_tier
 from src.services.requirements import format_requirements_document
+from src.services.social_content_generator import social_content_generator
+from src.services.social_team_assignment import assign_social_team
 from src.services.team_monitor import team_monitor
 from src.services.workflow_lock import workflow_lock
+from src.services.workflow_stages import get_stage_agents, get_stage_order, is_social_project
 from src.database.repository import db
 from src.models.schemas import (
     ActivityLog,
@@ -44,7 +46,7 @@ STAGE_TASKS: dict[ProjectStage, str] = {
         "Quotation is ready for CEO review. Awaiting CEO approval before project kickoff."
     ),
     ProjectStage.PROJECT_KICKOFF: (
-        "Plan the project: assign developers, create sprint plan, and set milestones."
+        "Plan the project: assign team members, create sprint plan, and set milestones."
     ),
     ProjectStage.DEVELOPMENT: (
         "Build the website or software EXACTLY per the requirements document. "
@@ -52,6 +54,22 @@ STAGE_TASKS: dict[ProjectStage, str] = {
         "contact form if requested, client name in footer. "
         "Do NOT add product/shop pages unless the client asked for ecommerce. "
         "Never paste budget, phone, or timeline into visible page text."
+    ),
+    ProjectStage.CONTENT_STRATEGY: (
+        "Build a social media content strategy: platforms, audience, posting cadence, "
+        "hashtag plan, ad objectives, and reel themes. Align with the client's brand voice."
+    ),
+    ProjectStage.CONTENT_CREATION: (
+        "Create social feed posts, paid ad copy, and short-form reel scripts. "
+        "Include captions, CTAs, visual direction for the designer, and platform-specific formatting."
+    ),
+    ProjectStage.CLIENT_CONTENT_APPROVAL: (
+        "Social posts, ads, and reels are ready for client review. "
+        "Awaiting client approval before publishing to their pages."
+    ),
+    ProjectStage.SOCIAL_PUBLISH: (
+        "Client approved the content. Publish posts, ads, and reels to the client's "
+        "Instagram, Facebook, and LinkedIn pages. Confirm live links and scheduling."
     ),
     ProjectStage.TEAM_LEADER_REVIEW: (
         "Cross-check all deliverables against requirements. "
@@ -93,6 +111,13 @@ class WorkflowEngine:
             return {
                 "status": "awaiting_ceo",
                 "message": "Quotation ready. CEO approval required to proceed.",
+                "project": project.model_dump(),
+            }
+
+        if stage == ProjectStage.CLIENT_CONTENT_APPROVAL:
+            return {
+                "status": "awaiting_client",
+                "message": "Social content ready. Client approval required before publishing.",
                 "project": project.model_dump(),
             }
 
@@ -159,8 +184,59 @@ class WorkflowEngine:
 
         return await self._run_stage_impl(project_id)
 
+    async def client_approve_content(
+        self, project_id: int, approved: bool, notes: str = ""
+    ) -> dict:
+        await workflow_lock.acquire()
+        try:
+            return await self._client_approve_content_impl(project_id, approved, notes)
+        finally:
+            workflow_lock.release()
+
+    async def _client_approve_content_impl(
+        self, project_id: int, approved: bool, notes: str = ""
+    ) -> dict:
+        project = await db.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        if project.current_stage != ProjectStage.CLIENT_CONTENT_APPROVAL:
+            raise ValueError("Project is not awaiting client content approval")
+
+        project.client_notes = notes
+
+        if not approved:
+            project.current_stage = ProjectStage.CONTENT_CREATION
+            project.status = ProjectStatus.ON_HOLD
+            project.client_content_approved = False
+            await db.update_project(project)
+            await self._log(
+                project.id,
+                AgentRole.CLIENT_SUCCESS,
+                get_member_by_role(AgentRole.CLIENT_SUCCESS).name,
+                "Content Rejected by Client",
+                f"Client requested revisions. Notes: {notes}",
+                ProjectStage.CLIENT_CONTENT_APPROVAL,
+            )
+            return {"status": "rejected", "project": project.model_dump()}
+
+        project.client_content_approved = True
+        project.status = ProjectStatus.ACTIVE
+        project.current_stage = ProjectStage.SOCIAL_PUBLISH
+        await db.update_project(project)
+        await self._log(
+            project.id,
+            AgentRole.CLIENT_SUCCESS,
+            project.client_name,
+            "Content Approved by Client",
+            f"Client approved posts, ads, and reels. Notes: {notes}",
+            ProjectStage.CLIENT_CONTENT_APPROVAL,
+        )
+
+        return await self._run_stage_impl(project_id)
+
     async def _execute_stage(self, project: Project, stage: ProjectStage) -> list[dict]:
-        roles = STAGE_AGENTS.get(stage.value, [])
+        roles = get_stage_agents(stage, project)
         task = STAGE_TASKS[stage]
         results = []
         context = ""
@@ -210,6 +286,7 @@ class WorkflowEngine:
         self, project: Project, stage: ProjectStage, results: list[dict]
     ) -> None:
         combined = "\n".join(r["output"] for r in results)
+        social = is_social_project(project)
 
         if stage == ProjectStage.REQUIREMENT_GATHERING:
             if not project.pricing_tier:
@@ -217,6 +294,8 @@ class WorkflowEngine:
                     f"{project.title} {project.description}",
                     explicit_tier=project.pricing_tier,
                 )
+            if social:
+                project.service_category = "social_media"
             tier = get_tier(project.pricing_tier)
             tier_label = tier.label if tier else ""
             project.requirements = format_requirements_document(
@@ -226,9 +305,14 @@ class WorkflowEngine:
                 combined,
                 tier_label=tier_label,
             )
-            ba = get_agent(AgentRole.BUSINESS_ANALYST)
+            ba_role = (
+                AgentRole.SOCIAL_MEDIA_ANALYST
+                if social
+                else AgentRole.BUSINESS_ANALYST
+            )
+            ba = get_agent(ba_role)
             ba_response = await ba.execute(
-                "Expand the requirements doc with user stories and tech stack. "
+                "Expand the requirements doc with user stories and deliverables. "
                 "Stay within the agreed service tier scope.",
                 project,
                 project.requirements,
@@ -240,13 +324,6 @@ class WorkflowEngine:
                 ba_response.content,
                 tier_label=tier_label,
             )
-            tech_match = re.search(
-                r"(?:Tech Stack|Recommended Tech)[:\s]*([^\n]+(?:\n- [^\n]+)*)",
-                ba_response.content,
-                re.I,
-            )
-            if tech_match:
-                project.tech_stack = tech_match.group(1).strip()
 
         elif stage == ProjectStage.QUOTATION:
             fresh = await db.get_project(project.id)
@@ -257,12 +334,17 @@ class WorkflowEngine:
                 blob,
                 explicit_tier=project.pricing_tier or "",
             )
+            if is_social_project(project):
+                project.service_category = "social_media"
             quotation = build_quotation(project.id, project, project.pricing_tier)
             await db.save_quotation(quotation)
             project.quotation_total = quotation.total_amount
 
         elif stage == ProjectStage.PROJECT_KICKOFF:
-            project.assigned_developers = assign_developers(project)
+            if social:
+                project.assigned_social_team = assign_social_team(project)
+            else:
+                project.assigned_developers = assign_developers(project)
 
         elif stage == ProjectStage.DEVELOPMENT:
             project.deliverables = combined
@@ -275,9 +357,47 @@ class WorkflowEngine:
             await self._log(
                 project.id,
                 AgentRole.FULLSTACK_DEV,
-                "Elena Vasquez",
+                get_member_by_role(AgentRole.FULLSTACK_DEV).name,
                 "Code files generated",
                 f"Wrote {code_result['file_count']} files to {code_result['directory']}/",
+                stage,
+            )
+
+        elif stage == ProjectStage.CONTENT_CREATION:
+            project.deliverables = combined
+            content_result = await social_content_generator.generate(project, combined)
+            platforms = content_result.get("platforms", [])
+            file_list = "\n".join(f"- {f}" for f in content_result["files_written"])
+            project.deliverables += (
+                f"\n\n## Social Media Campaign ({content_result['post_count']} posts, "
+                f"{content_result['ad_count']} ads, {content_result['reel_count']} reels)\n"
+                f"Platforms: {', '.join(platforms)}\n"
+                f"Preview: `/deliverables/{project.id}/social/index.html`\n"
+                f"{file_list}"
+            )
+            await self._log(
+                project.id,
+                AgentRole.SOCIAL_MEDIA_EXECUTIVE,
+                get_member_by_role(AgentRole.SOCIAL_MEDIA_EXECUTIVE).name,
+                "Social content generated",
+                f"Created posts, ads, and reels — awaiting client approval",
+                stage,
+            )
+
+        elif stage == ProjectStage.SOCIAL_PUBLISH:
+            platforms = _detect_publish_platforms(project)
+            project.published_platforms = platforms
+            social_content_generator.mark_published(project.id, platforms)
+            project.deliverables += (
+                f"\n\n## Published to {', '.join(platforms)}\n"
+                f"All approved posts, ads, and reels are live on client pages."
+            )
+            await self._log(
+                project.id,
+                AgentRole.SOCIAL_MEDIA_EXECUTIVE,
+                get_member_by_role(AgentRole.SOCIAL_MEDIA_EXECUTIVE).name,
+                "Content published",
+                f"Live on: {', '.join(platforms)}",
                 stage,
             )
 
@@ -339,9 +459,10 @@ class WorkflowEngine:
     async def _advance_project(
         self, project: Project, completed_stage: ProjectStage, results: list[dict]
     ) -> Project:
-        idx = STAGE_ORDER.index(completed_stage)
-        if idx < len(STAGE_ORDER) - 1:
-            project.current_stage = STAGE_ORDER[idx + 1]
+        order = get_stage_order(project)
+        idx = order.index(completed_stage)
+        if idx < len(order) - 1:
+            project.current_stage = order[idx + 1]
             if project.current_stage == ProjectStage.PROJECT_CLOSED:
                 project.status = ProjectStatus.COMPLETED
         project.updated_at = datetime.utcnow()
@@ -359,6 +480,12 @@ class WorkflowEngine:
                     "stages_completed": stages_run,
                     "project": project.model_dump(),
                 }
+            if project.current_stage == ProjectStage.CLIENT_CONTENT_APPROVAL:
+                return {
+                    "status": "paused_at_client_approval",
+                    "stages_completed": stages_run,
+                    "project": project.model_dump(),
+                }
             if project.current_stage == ProjectStage.PROJECT_CLOSED:
                 return {
                     "status": "completed",
@@ -371,6 +498,12 @@ class WorkflowEngine:
             if result.get("status") == "awaiting_ceo":
                 return {
                     "status": "paused_at_ceo_approval",
+                    "stages_completed": stages_run,
+                    "project": result["project"],
+                }
+            if result.get("status") == "awaiting_client":
+                return {
+                    "status": "paused_at_client_approval",
                     "stages_completed": stages_run,
                     "project": result["project"],
                 }
@@ -394,6 +527,12 @@ class WorkflowEngine:
                 stage=stage,
             )
         )
+
+
+def _detect_publish_platforms(project: Project) -> list[str]:
+    from src.services.social_content_generator import _detect_platforms
+
+    return _detect_platforms(f"{project.description} {project.requirements}")
 
 
 workflow = WorkflowEngine()

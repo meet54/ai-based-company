@@ -49,6 +49,9 @@ export class Office3DScene {
     this.renderer.setSize(w, h);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.22;
     mountEl.appendChild(this.renderer.domElement);
     this.renderer.domElement.className = 'office-3d-canvas';
     this.renderer.domElement.style.touchAction = 'none';
@@ -122,9 +125,9 @@ export class Office3DScene {
     mountEl.addEventListener('wheel', this._wheelHandler, { passive: false });
 
     this._lights();
-    this.applyTimeOfDay();
     this._buildFloor();
     this._buildRooms();
+    this.applyTimeOfDay();
     this._bindResize();
     this._bindCameraUI(mountEl);
     this._bindCharacterPicks();
@@ -136,10 +139,10 @@ export class Office3DScene {
   }
 
   _lights() {
-    this._ambient = new THREE.AmbientLight(0x8aa4c8, 0.45);
+    this._ambient = new THREE.AmbientLight(0xd8e4f4, 0.62);
     this.scene.add(this._ambient);
 
-    this._sun = new THREE.DirectionalLight(0xffffff, 0.85);
+    this._sun = new THREE.DirectionalLight(0xffffff, 1.05);
     this._sun.position.set(10, 22, 8);
     this._sun.castShadow = true;
     this._sun.shadow.mapSize.set(2048, 2048);
@@ -149,16 +152,41 @@ export class Office3DScene {
     this._sun.shadow.camera.bottom = -20;
     this.scene.add(this._sun);
 
-    this._fill = new THREE.PointLight(0x4fd1c5, 0.35, 40);
-    this._fill.position.set(4, 8, 14);
+    this._fill = new THREE.PointLight(0xfff0d0, 0.55, 48);
+    this._fill.position.set(12, 10, 9);
     this.scene.add(this._fill);
 
-    this._hemi = new THREE.HemisphereLight(0x87ceeb, 0x0a0e14, 0.35);
+    this._hemi = new THREE.HemisphereLight(0xc8dff5, 0x3a4558, 0.52);
     this.scene.add(this._hemi);
 
     this._timePeriod = null;
     this._timeCheckAccum = 0;
     this._interiorBoost = 1;
+    this._ceilingLights = [];
+  }
+
+  _addCeilingLight(x, z, { color = 0xfff4e0, intensity = 0.9, distance = 9, height = 2.05 } = {}) {
+    const light = new THREE.PointLight(color, intensity, distance, 1.5);
+    light.position.set(x, height, z);
+    this.scene.add(light);
+
+    const fixtureMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      emissive: 0xfff0d0,
+      emissiveIntensity: 0.35,
+      roughness: 0.9,
+      metalness: 0,
+    });
+    const fixture = this._mesh(new THREE.BoxGeometry(0.72, 0.05, 0.4), fixtureMat);
+    fixture.position.set(x, height - 0.04, z);
+    fixture.castShadow = false;
+
+    this._ceilingLights.push({ light, fixture, baseIntensity: intensity });
+    if (this._ceilingLightMult != null) {
+      light.intensity = intensity * this._ceilingLightMult;
+      fixture.material.emissiveIntensity = 0.22 + this._ceilingLightMult * 0.18;
+    }
+    return light;
   }
 
   applyTimeOfDay(period) {
@@ -188,6 +216,16 @@ export class Office3DScene {
     this._hemi.groundColor.setHex(theme.hemisphere.ground);
     this._hemi.intensity = theme.hemisphere.intensity;
     this._interiorBoost = theme.interiorBoost;
+    this._ceilingLightMult = theme.ceilingLightMult ?? 1;
+    this._ceilingLights?.forEach(({ light, fixture, baseIntensity }) => {
+      light.intensity = baseIntensity * this._ceilingLightMult;
+      if (fixture?.material) {
+        fixture.material.emissiveIntensity = 0.22 + this._ceilingLightMult * 0.18;
+      }
+    });
+    if (this.renderer) {
+      this.renderer.toneMappingExposure = theme.exposure ?? 1.22;
+    }
 
     const floorEl = this.mount?.closest('.office-floor');
     applyTimePeriodClasses(floorEl, period);
@@ -242,14 +280,14 @@ export class Office3DScene {
   _buildFloor() {
     const base = new THREE.Mesh(
       new THREE.PlaneGeometry(FLOOR_W, FLOOR_D),
-      this._floorMat(0x141c28),
+      this._floorMat(0x2a3548),
     );
     base.rotation.x = -Math.PI / 2;
     base.position.set(FLOOR_W / 2, 0, FLOOR_D / 2);
     base.receiveShadow = true;
     this.scene.add(base);
 
-    const grid = new THREE.GridHelper(FLOOR_W, 24, 0x2a3a52, 0x1a2436);
+    const grid = new THREE.GridHelper(FLOOR_W, 24, 0x4a5f7a, 0x354560);
     grid.position.set(FLOOR_W / 2, 0.02, FLOOR_D / 2);
     this.scene.add(grid);
   }
@@ -269,6 +307,33 @@ export class Office3DScene {
     if (x + w < FLOOR_W - 0.5) {
       this._box(0.08, h, d, mat, x + w, h / 2, z + d / 2);
     }
+  }
+
+  _zoneFloor(x, z, w, d, floorColor) {
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), this._floorMat(floorColor));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(x + w / 2, 0.035, z + d / 2);
+    floor.receiveShadow = true;
+    this.scene.add(floor);
+  }
+
+  _partitionWall(cx, z, width) {
+    const mat = this._mat(0x64748b, 0x000000, 0.45, 0.35);
+    const h = 1.05;
+    const wall = this._mesh(new THREE.BoxGeometry(width, h, 0.12), mat);
+    wall.position.set(cx, h / 2, z);
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      transparent: true,
+      opacity: 0.22,
+      roughness: 0.15,
+      metalness: 0.25,
+    });
+    const glass = this._mesh(new THREE.BoxGeometry(width * 0.55, h * 0.55, 0.06), glassMat);
+    glass.position.set(cx, h * 0.55, z);
+    const sign = this._mesh(new THREE.BoxGeometry(2.4, 0.28, 0.04), this._mat(0x4c1d95));
+    sign.position.set(cx, h * 0.82, z);
+    this._group(wall, glass, sign);
   }
 
   _roomLabel(text, x, z) {
@@ -326,39 +391,56 @@ export class Office3DScene {
 
   _buildRooms() {
     // Gaming room — top left
-    this._roomWalls(0.3, 0.3, 4.2, 5.2, 0x1a3d28, 0x0f2818);
+    this._roomWalls(0.3, 0.3, 4.2, 5.2, 0x2d5a42, 0x1f3d2c);
     this._roomLabel('🎮 Gaming Room', 2.4, 2.8);
     this._gamingStation(2.2, 2.5);
-    this._addGlowLight(2.2, 1.5, 2.5, 0x22c55e, 0.25);
+    this._addGlowLight(2.2, 1.5, 2.5, 0x22c55e, 0.35);
+    this._addCeilingLight(2.4, 2.8, { color: 0xe8f8ee, intensity: 0.75, distance: 7 });
 
     // Meeting room — left middle
-    this._roomWalls(0.3, 5.8, 4.2, 5.5, 0x3d2e1e, 0x2a2018);
+    this._roomWalls(0.3, 5.8, 4.2, 5.5, 0x5c4a38, 0x3d3028);
     this._roomLabel('🤝 Meeting Room', 2.4, 8.5);
     this._meetingTable(2.4, 8.5);
+    this._addGlowLight(2.4, 1.5, 8.5, 0x6366f1, 0.35);
+    this._addCeilingLight(2.4, 8.5, { color: 0xf0eeff, intensity: 0.82, distance: 7 });
 
     // Main entrance — bottom left
-    this._roomWalls(0.3, 11.6, 4.2, 6.2, 0x243044, 0x1a2436);
+    this._roomWalls(0.3, 11.6, 4.2, 6.2, 0x3d5068, 0x2a3548);
     this._roomLabel('🚪 Main Entrance', 2.4, 14.5);
     this._entranceDoors(2.4, 14.2);
+    this._addCeilingLight(2.4, 14.5, { color: 0xfff8ee, intensity: 0.7, distance: 7 });
 
-    // Dev floor — center (desks via buildDesks)
-    this._roomWalls(4.8, 0.3, 12.2, 17.2, 0x243044, 0x1a2436);
-    this._roomLabel('💻 Dev Floor', 10.8, 1.5);
+    // Dev floor — center, split: Dev (north) + Social Media Dept (south)
+    this._roomWalls(4.8, 0.3, 12.2, 17.2, 0x3d5068, 0x2e3d52);
+    this._zoneFloor(4.8, 0.35, 12.2, 8.4, 0x2a3a50);
+    this._zoneFloor(4.8, 9.15, 12.2, 8.35, 0x352a48);
+    this._partitionWall(10.8, 9.0, 12.0);
+    this._roomLabel('💻 Dev Floor', 10.8, 2.2);
+    this._roomLabel('📱 Social Media Dept', 10.8, 13.5);
+    this._addCeilingLight(8.5, 4.5, { color: 0xf4f8ff, intensity: 1.0, distance: 10 });
+    this._addCeilingLight(13.2, 4.5, { color: 0xf4f8ff, intensity: 0.95, distance: 10 });
+    this._addCeilingLight(8.5, 13.0, { color: 0xf5eeff, intensity: 0.95, distance: 10 });
+    this._addCeilingLight(13.2, 13.0, { color: 0xf5eeff, intensity: 0.9, distance: 10 });
+    this._addGlowLight(10.8, 1.5, 13.2, 0xa855f7, 0.28);
 
     // Coffee break room — top right
-    this._roomWalls(17.3, 0.3, 6.5, 8.8, 0x3d2e1e, 0x2a2018);
+    this._roomWalls(17.3, 0.3, 6.5, 8.8, 0x5c4a38, 0x3d3028);
     this._roomLabel('☕ Coffee Break Room', 20.5, 1.5);
     this._coffeeBar(19, 2.5);
     this._coffeeSeating(18.5, 5.5);
     this._coffeeSeating(21.5, 5.5);
     this._coffeeSeating(18.5, 7.5);
     this._coffeeSeating(21.5, 7.5);
+    this._addGlowLight(19, 1.8, 2.5, 0xffb347, 0.4);
+    this._addCeilingLight(20.5, 4.7, { color: 0xfff4e0, intensity: 0.88, distance: 8 });
 
     // Call booths — bottom right
-    this._roomWalls(17.3, 9.4, 6.5, 8.1, 0x1e2a3d, 0x151f2e);
+    this._roomWalls(17.3, 9.4, 6.5, 8.1, 0x2e3d52, 0x243044);
     this._roomLabel('📞 Call Booths', 20.5, 10.5);
     this._callBooth(19.2, 12);
     this._callBooth(21.8, 14.5);
+    this._addCeilingLight(19.2, 12, { color: 0xe8f4ff, intensity: 0.72, distance: 5.5 });
+    this._addCeilingLight(21.8, 14.5, { color: 0xe8f4ff, intensity: 0.72, distance: 5.5 });
   }
 
   _meetingTable(x, z) {
@@ -597,13 +679,75 @@ export class Office3DScene {
     this._group(base, back);
   }
 
-  buildDesks(desks) {
+  buildDesks(devDesks, socialDesks = []) {
     if (this._desksBuilt) return;
     this._desksBuilt = true;
-    desks.forEach((d) => {
+    devDesks.forEach((d) => {
       const p = pctToWorld(d.x, d.y);
       this._workDesk(p.x, p.z);
     });
+    socialDesks.forEach((d) => {
+      const p = pctToWorld(d.x, d.y);
+      this._socialWorkDesk(p.x, p.z);
+    });
+  }
+
+  _socialWorkDesk(x, z) {
+    const deskMat = this._mat(0x4a3d6a);
+    const metal = this._mat(0x64748b, 0x000000, 0.5, 0.4);
+
+    const top = this._mesh(new THREE.BoxGeometry(1.0, 0.06, 0.6), deskMat);
+    top.position.set(x, 0.55, z + 0.15);
+
+    const leg = (dx, dz) => {
+      const l = this._mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.52, 8), metal);
+      l.position.set(x + dx, 0.28, z + dz);
+      return l;
+    };
+
+    const chairSeat = this._mesh(new THREE.BoxGeometry(0.38, 0.06, 0.38), this._mat(0x2e1f3d));
+    chairSeat.position.set(x, 0.38, z - 0.45);
+    const chairBack = this._mesh(new THREE.BoxGeometry(0.38, 0.45, 0.06), this._mat(0x2e1f3d));
+    chairBack.position.set(x, 0.58, z - 0.62);
+
+    const laptopBase = this._mesh(new THREE.BoxGeometry(0.42, 0.03, 0.28), this._mat(0x94a3b8, 0x000000, 0.6, 0.3));
+    laptopBase.position.set(x, 0.6, z + 0.12);
+
+    const laptopScreenMat = new THREE.MeshStandardMaterial({
+      color: 0x1a0f2e,
+      emissive: 0x9333ea,
+      emissiveIntensity: 0.5,
+      roughness: 0.4,
+      metalness: 0.05,
+    });
+    const laptopScreen = this._mesh(new THREE.BoxGeometry(0.42, 0.28, 0.02), laptopScreenMat);
+    laptopScreen.position.set(x, 0.74, z - 0.02);
+    laptopScreen.rotation.x = -0.35;
+    const lapLight = this._addGlowLight(x, 0.78, z + 0.1, 0xc084fc, 0.24);
+    this._animatedProps.push({
+      mesh: laptopScreen,
+      light: lapLight,
+      type: 'laptop',
+      phase: x + 100,
+      x,
+      z,
+    });
+
+    const tablet = this._mesh(new THREE.BoxGeometry(0.22, 0.02, 0.3), this._mat(0x7c3aed, 0x4c1d95, 0.35, 0.4));
+    tablet.position.set(x + 0.32, 0.62, z + 0.18);
+
+    this._group(
+      top,
+      leg(-0.42, -0.2),
+      leg(0.42, -0.2),
+      leg(-0.42, 0.35),
+      leg(0.42, 0.35),
+      chairSeat,
+      chairBack,
+      laptopBase,
+      laptopScreen,
+      tablet,
+    );
   }
 
   _workDesk(x, z) {

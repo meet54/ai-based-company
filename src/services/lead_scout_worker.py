@@ -2,6 +2,7 @@
 
 import asyncio
 
+from src.agents.team import get_member_by_role
 from src.database.repository import db
 from src.models.schemas import ActivityLog, AgentRole
 from src.services.lead_scout import lead_scout
@@ -33,15 +34,18 @@ class LeadScoutWorker:
         self._running = False
 
     async def _scan_cycle(self) -> None:
+        marketing = get_member_by_role(AgentRole.MARKETING)
+        sales = get_member_by_role(AgentRole.SALES)
+
         team_monitor.set_working_inhouse(
-            "Priya Sharma",
-            AgentRole.MARKETING.value,
+            marketing.name,
+            marketing.role.value,
             "Scanning USA, UK, EU, India & Japan gigs",
             "Freelance only — Germany excluded…",
         )
         team_monitor.set_working_inhouse(
-            "Alex Rivera",
-            AgentRole.SALES.value,
+            sales.name,
+            sales.role.value,
             "Qualifying regional freelance leads",
             "Reviewing r/forhire, IndiaBusiness, LondonJobs…",
         )
@@ -52,21 +56,21 @@ class LeadScoutWorker:
             ActivityLog(
                 project_id=None,
                 agent_role=AgentRole.MARKETING,
-                agent_name="Priya Sharma",
+                agent_name=marketing.name,
                 action="Lead scan completed",
                 details=detail,
                 stage=None,
             )
         )
         team_monitor.set_idle(
-            "Priya Sharma",
-            AgentRole.MARKETING.value,
+            marketing.name,
+            marketing.role.value,
             "Lead discovery",
             f"{detail}. {new_count} new prospect(s)." if new_count else detail,
         )
         team_monitor.set_idle(
-            "Alex Rivera",
-            AgentRole.SALES.value,
+            sales.name,
+            sales.role.value,
             "Lead qualification",
             "Ready to approach prospects from live feed.",
         )

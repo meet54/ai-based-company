@@ -190,7 +190,7 @@ npm install
 npx expo start
 ```
 
-Built by AI Nexus Mobile Engineering — Aisha Khan & Marcus Johnson.
+Built by AI Nexus Mobile Engineering — Manan Desai & Daxesh Bhoi.
 """
 
 
@@ -215,8 +215,8 @@ mobile/
 ```
 
 ## Team
-- Aisha Khan — Lead Mobile Developer
-- Marcus Johnson — App Developer (maps, notifications)
+- Manan Desai — Lead Mobile Developer
+- Daxesh Bhoi — App Developer (maps, notifications)
 """
 
 

@@ -101,6 +101,48 @@ PRICING_TIERS: dict[str, PricingTier] = {
             "App store submission guide",
         ],
     ),
+    "social_media_starter": PricingTier(
+        id="social_media_starter",
+        label="Social Media Starter",
+        base_usd=450.0,
+        description="Monthly social package — posts, 1 ad set, and 1 reel with client approval workflow.",
+        delivery_days="1–2 weeks per batch",
+        includes=[
+            "4 feed posts + captions",
+            "2 paid ad creatives",
+            "1 short-form reel script & storyboard",
+            "Client review before publish",
+            "Upload to Instagram & Facebook",
+        ],
+    ),
+    "social_media_growth": PricingTier(
+        id="social_media_growth",
+        label="Social Media Growth",
+        base_usd=850.0,
+        description="Expanded campaign — more posts, ads, reels, and analytics reporting.",
+        delivery_days="2–3 weeks per batch",
+        includes=[
+            "8 posts + content calendar",
+            "4 ad variations",
+            "2 reels with hooks & scripts",
+            "Hashtag & audience strategy",
+            "Client approval + scheduled publishing",
+        ],
+    ),
+    "social_media_premium": PricingTier(
+        id="social_media_premium",
+        label="Social Media Premium",
+        base_usd=1500.0,
+        description="Full-service social — strategy, design, ads, reels, and multi-platform management.",
+        delivery_days="3–4 weeks per batch",
+        includes=[
+            "12 posts across platforms",
+            "6 ad creatives + targeting brief",
+            "4 reels (scripts + visual direction)",
+            "Monthly analytics report",
+            "LinkedIn + Instagram + Facebook publishing",
+        ],
+    ),
 }
 
 TIER_ALIASES = {
@@ -120,6 +162,11 @@ TIER_ALIASES = {
     "custom_software": "custom_software",
     "mobile": "mobile_app",
     "mobile_app": "mobile_app",
+    "social_media": "social_media_starter",
+    "social": "social_media_starter",
+    "social_media_starter": "social_media_starter",
+    "social_media_growth": "social_media_growth",
+    "social_media_premium": "social_media_premium",
 }
 
 
@@ -189,7 +236,16 @@ def classify_tier(
 
     blob = (text or "").lower()
 
-    if re.search(r"\b(mobile app|react native|ios|android|expo)\b", blob):
+    if project_type in ("social_media", "social"):
+        inferred = "social_media_starter"
+    elif re.search(r"\b(social media|instagram|facebook ads|reels?|tiktok|content calendar|graphic design)\b", blob):
+        if re.search(r"\b(premium|full service|12 post|monthly management)\b", blob):
+            inferred = "social_media_premium"
+        elif re.search(r"\b(growth|8 post|analytics)\b", blob):
+            inferred = "social_media_growth"
+        else:
+            inferred = "social_media_starter"
+    elif re.search(r"\b(mobile app|react native|ios|android|expo)\b", blob):
         inferred = "mobile_app"
     elif re.search(r"\b(custom software|erp|crm|saas platform|enterprise)\b", blob):
         inferred = "custom_software"
